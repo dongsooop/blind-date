@@ -1063,6 +1063,33 @@
   resolved "https://registry.yarnpkg.com/@pkgr/core/-/core-0.2.9.tgz#d229a7b7f9dac167a156992ef23c7f023653f53b"
   integrity sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==
 
+"@redis/bloom@5.8.2":
+  version "5.8.2"
+  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-5.8.2.tgz#e649698907876cd746d4867b634c4fa1f152bec8"
+  integrity sha512-855DR0ChetZLarblio5eM0yLwxA9Dqq50t8StXKp5bAtLT0G+rZ+eRzzqxl37sPqQKjUudSYypz55o6nNhbz0A==
+
+"@redis/client@5.8.2":
+  version "5.8.2"
+  resolved "https://registry.yarnpkg.com/@redis/client/-/client-5.8.2.tgz#099f387b7fba99180c10e0e7093b71d022e704f8"
+  integrity sha512-WtMScno3+eBpTac1Uav2zugXEoXqaU23YznwvFgkPwBQVwEHTDgOG7uEAObtZ/Nyn8SmAMbqkEubJaMOvnqdsQ==
+  dependencies:
+    cluster-key-slot "1.1.2"
+
+"@redis/json@5.8.2":
+  version "5.8.2"
+  resolved "https://registry.yarnpkg.com/@redis/json/-/json-5.8.2.tgz#9d8b4c1b645deb6238d2cc1214d214c7f0b04316"
+  integrity sha512-uxpVfas3I0LccBX9rIfDgJ0dBrUa3+0Gc8sEwmQQH0vHi7C1Rx1Qn8Nv1QWz5bohoeIXMICFZRcyDONvum2l/w==
+
+"@redis/search@5.8.2":
+  version "5.8.2"
+  resolved "https://registry.yarnpkg.com/@redis/search/-/search-5.8.2.tgz#7bdffdce2114c48fb8a97321e0e5b1ad2a876c57"
+  integrity sha512-cNv7HlgayavCBXqPXgaS97DRPVWFznuzsAmmuemi2TMCx5scwLiP50TeZvUS06h/MG96YNPe6A0Zt57yayfxwA==
+
+"@redis/time-series@5.8.2":
+  version "5.8.2"
+  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-5.8.2.tgz#24c7c0edb7c8cd279ac26ce28c9dbd1f5c30ac35"
+  integrity sha512-g2NlHM07fK8H4k+613NBsk3y70R2JIM2dPMSkhIjl2Z17SYvaYKdusz85d7VYOrZBWtDrHV/WD2E3vGu+zni8A==
+
 "@sinclair/typebox@^0.34.0":
   version "0.34.41"
   resolved "https://registry.yarnpkg.com/@sinclair/typebox/-/typebox-0.34.41.tgz#aa51a6c1946df2c5a11494a2cdb9318e026db16c"
@@ -2142,6 +2169,11 @@ clone@^1.0.2:
   version "1.0.4"
   resolved "https://registry.yarnpkg.com/clone/-/clone-1.0.4.tgz#da309cc263df15994c688ca902179ca3c7cd7c7e"
   integrity sha512-JQHZ2QMW6l3aH/j6xCqQThY/9OH4D/9ls34cgkUBiEeocRTU04tHfKPBsUK1PqZCUQM7GiA0IIXJSuXHI64Kbg==
+
+cluster-key-slot@1.1.2:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/cluster-key-slot/-/cluster-key-slot-1.1.2.tgz#88ddaa46906e303b5de30d3153b7d9fe0a0c19ac"
+  integrity sha512-RMr0FhtfXemyinomL4hrWcYJxmX6deFdCxpJzhDttxgO1+bcCnkk+9drydLVDmAMG7NE6aN/fl4F7ucU/90gAA==
 
 co@^4.6.0:
   version "4.6.0"
@@ -4329,6 +4361,17 @@ readdirp@^4.0.1:
   version "4.1.2"
   resolved "https://registry.yarnpkg.com/readdirp/-/readdirp-4.1.2.tgz#eb85801435fbf2a7ee58f19e0921b068fc69948d"
   integrity sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==
+
+redis@^5.8.2:
+  version "5.8.2"
+  resolved "https://registry.yarnpkg.com/redis/-/redis-5.8.2.tgz#e24a2e36a1dc72f286a92de76f08a63d34a9e02a"
+  integrity sha512-31vunZj07++Y1vcFGcnNWEf5jPoTkGARgfWI4+Tk55vdwHxhAvug8VEtW7Cx+/h47NuJTEg/JL77zAwC6E0OeA==
+  dependencies:
+    "@redis/bloom" "5.8.2"
+    "@redis/client" "5.8.2"
+    "@redis/json" "5.8.2"
+    "@redis/search" "5.8.2"
+    "@redis/time-series" "5.8.2"
 
 reflect-metadata@^0.2.2:
   version "0.2.2"
