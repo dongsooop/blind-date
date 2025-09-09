@@ -1,21 +1,14 @@
 import {
-  ConnectedSocket,
-  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
-  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseFilters } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { SESSION_STATE } from '@/session/session.constant';
-import Session from '@/session/session.entity';
-import { SocketId } from 'socket.io-adapter/dist/in-memory-adapter';
-import { SessionNotAvailableException } from '@/blinddate/exception/SessionNotAvailableException';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
+import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 
 @WebSocketGateway({
   namespace: 'rooms',
@@ -38,7 +31,7 @@ export class BlindDateGateway
   @WebSocketServer()
   server: Server;
 
-  constructor() {}
+  constructor(private readonly blindDateMessage: BlindDateMessage) {}
 
   afterInit() {
     console.log('WebSocket Gateway Initialized');
@@ -78,6 +71,9 @@ export class BlindDateGateway
       if (volunteer === this.MAX_SESSION_MEMBER_COUNT) {
         this.pointer = randomUUID(); // 다음 사용자를 위해 pointer 새로 발급
         this.emitStartEvent(this.pointer); // 과팅 시작 이벤트 발행
+        this.blindDateMessage.getStartMessage().forEach((message) => {
+          this.server.to(this.pointer).emit(message);
+        });
       }
     }
   }
