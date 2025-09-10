@@ -12,6 +12,10 @@ import { Server, Socket } from 'socket.io';
 import { randomUUID } from 'node:crypto';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
+import { EVENT_TYPE } from '@/blinddate/constant/blinddate.event.type';
+import { Broadcast } from '@/blinddate/constant/Broadcast';
+import Session from '@/session/session.entity';
+import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
 
 @WebSocketGateway({
   namespace: 'blinddate',
@@ -26,12 +30,12 @@ export class BlindDateGateway
   private readonly JOINED_EVENT_NAME = 'joined';
   private readonly START_EVENT_NAME = 'start';
   private readonly MATCHING_ROOM_ID = 'MATCHING';
-  private readonly MAX_SESSION_MEMBER_COUNT = 7;
+  private readonly MAX_SESSION_MEMBER_COUNT = 1;
   private readonly EVENT_MESSAGE_AMOUNT = 3;
 
   // private session: Session[] = [];
   private pointer: string = this.MATCHING_ROOM_ID;
-  private volunteer: Map<string, number> = new Map();
+  private sessionMap: Map<string, Session> = new Map();
 
   @WebSocketServer()
   server: Server;
@@ -52,64 +56,132 @@ export class BlindDateGateway
     if (typeof client.handshake.query.sessionId !== 'string') {
       throw new SessionIdNotFoundException();
     }
-    const sessionId: string = client.handshake.query.sessionId;
-
-    // 매칭 연결 시 방 배정
-    if (sessionId === this.MATCHING_ROOM_ID) {
-      // 설정된 방이 없거나, 꽉찼을 때 pointer update
-      if (
-        this.pointer === this.MATCHING_ROOM_ID ||
-        this.getVolunteer(this.pointer) >= this.MAX_SESSION_MEMBER_COUNT
-      ) {
-        this.pointer = randomUUID();
-      }
-
-      // 새 세션 입장
-      await client.join(this.pointer);
-    }
+    const sessionId: string = this.assignSession(
+      client.handshake.query.sessionId,
+    );
+    // 새 세션 입장
+    await client.join(this.pointer);
 
     // 매칭된 방
-    const volunteer = this.getVolunteer(this.pointer) + 1;
-    this.volunteer.set(this.pointer, volunteer);
+    const session = this.sessionMap.get(sessionId);
+    if (session === undefined) {
+      throw new SessionIdNotFoundException();
+    }
+
+    // 회원 ID
+    const memberId = Number(client.handshake.query.memberId);
+    if (isNaN(memberId)) {
+      throw new MemberIdNotAvailableException();
+    }
+
+    // 세션에 회원 추가
+    session.addMember(memberId);
+
+    // 회원 닉네임
+    const name = session.getMemberName(Number(memberId));
+
+    // 참여자 수
+    const volunteer = session.getVolunteer();
 
     // 방 인원 업데이트 이벤트 발행
     this.updateSessionVolunteer(this.pointer, volunteer);
 
-    // 현재 사용자가 마지막 참여자일때
-    if (volunteer === this.MAX_SESSION_MEMBER_COUNT) {
-      const sessionId: string = this.pointer;
-      this.pointer = randomUUID(); // 다음 사용자를 위해 pointer 새로 발급
-      this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
-      this.blindDateMessage.getStartMessage().forEach((message) => {
-        this.server.to(sessionId).emit('message', message);
+    // 현재 사용자가 마지막 참여자가 아닐때 종료
+    if (volunteer < this.MAX_SESSION_MEMBER_COUNT) {
+      return;
+    }
+
+    // 마지막 참여자일 경우
+    this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
+
+    // 시작 전 안내 멘트 전송
+    this.blindDateMessage.getStartMessage().forEach((message) => {
+      this.server
+        .to(sessionId)
+        .emit(
+          EVENT_TYPE.SYSTEM,
+          new Broadcast(message, 0, '동냥이', new Date()),
+        );
+    });
+
+    // 시간별로 이벤트 메시지 전송
+    await this.sendEventMessage(sessionId, memberId, name);
+  }
+
+  private async sendEventMessage(
+    sessionId: string,
+    memberId: number,
+    name: string,
+  ) {
+    for (const message of this.blindDateMessage.getEventMessage(
+      this.EVENT_MESSAGE_AMOUNT,
+    )) {
+      this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
+      this.server
+        .to(sessionId)
+        .emit(
+          EVENT_TYPE.SYSTEM,
+          new Broadcast(message, memberId, name, new Date()),
+        );
+
+      // 메시지 전달 후 채팅 활성화
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          this.server.to(sessionId).emit(EVENT_TYPE.THAW);
+          resolve();
+        }, 2000);
       });
 
-      for (const message of this.blindDateMessage.getEventMessage(
-        this.EVENT_MESSAGE_AMOUNT,
-      )) {
-        this.server.to(sessionId).emit('freeze');
-        this.server.to(sessionId).emit('message', message);
-
-        // 메시지 전달 후 채팅 활성화
-        await new Promise<void>((resolve) => {
-          setTimeout(() => {
-            this.server.to(sessionId).emit('thaw');
-            resolve();
-          }, 2000);
-        });
-
-        // 사용자 채팅 시간 주기
-        await new Promise<void>((resolve) => {
-          setTimeout(() => {
-            resolve();
-            }, 180000);
-        });
-      }
+      // 사용자 채팅 시간 주기
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          resolve();
+        }, 180000);
+      });
     }
   }
 
+  /**
+   * 세션 배정
+   * @param sessionId
+   * @private
+   */
+  private assignSession(sessionId: string) {
+    if (sessionId === undefined || sessionId === null) {
+      throw new SessionIdNotFoundException();
+    }
+
+    // pointer가 가리키는 세션이 없을 때
+    if (this.pointer === this.MATCHING_ROOM_ID) {
+      return this.createNewSession();
+    }
+
+    // pointer가 가리키는 세션의 인원수가 찼을 때
+    const volunteer = this.sessionMap.get(this.pointer)?.getVolunteer() || 0;
+    if (volunteer >= this.MAX_SESSION_MEMBER_COUNT) {
+      return this.createNewSession();
+    }
+
+    return this.pointer;
+  }
+
+  /**
+   * 세션 생성
+   * @private
+   */
+  private createNewSession(): string {
+    const sessionId = randomUUID();
+    this.pointer = sessionId;
+    this.sessionMap.set(sessionId, new Session(sessionId));
+
+    return sessionId;
+  }
+
   private getVolunteer(sessionId: string): number {
-    const volunteer: number | undefined = this.volunteer.get(sessionId);
+    const volunteer: number | undefined = this.sessionMap
+      .get(sessionId)
+      ?.getVolunteer();
+
     if (volunteer === undefined) {
       return 0;
     }
