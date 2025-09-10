@@ -1,7 +1,10 @@
 import {
+  ConnectedSocket,
+  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
@@ -11,7 +14,7 @@ import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFo
 import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 
 @WebSocketGateway({
-  namespace: 'rooms',
+  namespace: 'blinddate',
   cors: {
     origin: true,
     methods: ['GET', 'POST'],
@@ -24,9 +27,11 @@ export class BlindDateGateway
   private readonly START_EVENT_NAME = 'start';
   private readonly MATCHING_ROOM_ID = 'MATCHING';
   private readonly MAX_SESSION_MEMBER_COUNT = 7;
+  private readonly EVENT_MESSAGE_AMOUNT = 3;
 
   // private session: Session[] = [];
   private pointer: string = this.MATCHING_ROOM_ID;
+  private volunteer: Map<string, number> = new Map();
 
   @WebSocketServer()
   server: Server;
@@ -61,31 +66,55 @@ export class BlindDateGateway
 
       // 새 세션 입장
       await client.join(this.pointer);
+    }
 
-      const volunteer = this.getVolunteer(this.pointer);
+    // 매칭된 방
+    const volunteer = this.getVolunteer(this.pointer) + 1;
+    this.volunteer.set(this.pointer, volunteer);
 
-      // 방 인원 업데이트 이벤트 발행
-      this.updateSessionVolunteer(this.pointer, volunteer);
+    // 방 인원 업데이트 이벤트 발행
+    this.updateSessionVolunteer(this.pointer, volunteer);
 
-      // 현재 사용자가 마지막 참여자일때
-      if (volunteer === this.MAX_SESSION_MEMBER_COUNT) {
-        this.pointer = randomUUID(); // 다음 사용자를 위해 pointer 새로 발급
-        this.emitStartEvent(this.pointer); // 과팅 시작 이벤트 발행
-        this.blindDateMessage.getStartMessage().forEach((message) => {
-          this.server.to(this.pointer).emit(message);
+    // 현재 사용자가 마지막 참여자일때
+    if (volunteer === this.MAX_SESSION_MEMBER_COUNT) {
+      const sessionId: string = this.pointer;
+      this.pointer = randomUUID(); // 다음 사용자를 위해 pointer 새로 발급
+      this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
+      this.blindDateMessage.getStartMessage().forEach((message) => {
+        this.server.to(sessionId).emit('message', message);
+      });
+
+      for (const message of this.blindDateMessage.getEventMessage(
+        this.EVENT_MESSAGE_AMOUNT,
+      )) {
+        this.server.to(sessionId).emit('freeze');
+        this.server.to(sessionId).emit('message', message);
+
+        // 메시지 전달 후 채팅 활성화
+        await new Promise<void>((resolve) => {
+          setTimeout(() => {
+            this.server.to(sessionId).emit('thaw');
+            resolve();
+          }, 2000);
+        });
+
+        // 사용자 채팅 시간 주기
+        await new Promise<void>((resolve) => {
+          setTimeout(() => {
+            resolve();
+            }, 180000);
         });
       }
     }
   }
 
   private getVolunteer(sessionId: string): number {
-    const room: Set<string> | undefined =
-      this.server.sockets.adapter.rooms.get(sessionId);
-    if (room === undefined) {
+    const volunteer: number | undefined = this.volunteer.get(sessionId);
+    if (volunteer === undefined) {
       return 0;
     }
 
-    return room.size;
+    return volunteer;
   }
 
   private emitStartEvent(sessionId: string) {
@@ -101,5 +130,15 @@ export class BlindDateGateway
     });
   }
 
-  async handleDisconnect(client: Socket) {}
+  handleDisconnect(client: Socket) {
+    console.log(`Client disconnected: ${client.id}`);
+  }
+
+  @SubscribeMessage('message')
+  handleMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { sessionId: string; message: string },
+  ) {
+    this.server.to(data.sessionId).emit('broadcast', data.message);
+  }
 }
