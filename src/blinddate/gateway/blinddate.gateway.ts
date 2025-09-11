@@ -214,9 +214,25 @@ export class BlindDateGateway
   @SubscribeMessage('message')
   handleMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { sessionId: string; message: string },
+    @MessageBody()
+    data: { sessionId: string; message: string; senderId: number },
   ) {
-    this.server.to(data.sessionId).emit('broadcast', data.message);
+    const session = this.sessionMap.get(data.sessionId);
+    if (session === undefined) {
+      throw new SessionIdNotFoundException();
+    }
+
+    this.server
+      .to(data.sessionId)
+      .emit(
+        'broadcast',
+        new Broadcast(
+          data.message,
+          data.senderId,
+          session.getMemberName(data.senderId),
+          new Date(),
+        ),
+      );
   }
 
   @SubscribeMessage('choice')
