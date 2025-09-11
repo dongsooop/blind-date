@@ -49,20 +49,13 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/blinddate:latest,${{ secrets.DOCKER_USERNAME }}/blinddate:${{ github.sha }}
 
-      # Docker Compose로 전체 애플리케이션 빌드 및 실행 (테스트용)
-      - name: Run Docker Compose for testing
-        run: |
-          docker run ${{ secrets.DOCKER_USERNAME }}/blinddate:latest
-        continue-on-error: false
-
       # 서버에서 파일을 최신화 하고, 배포 스크립트를 통해 실제 배포 진행
       - name: Deploy with Docker Compose on server
         run: |
           ssh ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} -p ${{ secrets.PORT }} " \
-            cd /home/ubuntu/dongsoop && 
-            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }} && 
-            docker pull \${DOCKER_USERNAME}/blinddate:latest && 
-            docker stop blinddate && 
-            docker compose -f blinddate-compose.yml up -d && 
+            cd /home/ubuntu/dongsoop && \
+            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }} && \
+            docker pull \${DOCKER_USERNAME}/blinddate:latest && \
+            docker compose -f blinddate-compose.yml up -d && \
             docker system prune -af
           "
