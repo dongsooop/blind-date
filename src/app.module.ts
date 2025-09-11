@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { BindDateModule } from '@/blinddate/blinddate.module';
+import { BlindDateModule } from '@/blinddate/blinddate.module';
 
 @Module({
-  imports: [BindDateModule],
+  imports: [BlindDateModule],
   controllers: [AppController],
   providers: [AppService],
 })

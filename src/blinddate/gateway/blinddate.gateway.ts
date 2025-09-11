@@ -16,6 +16,8 @@ import { EVENT_TYPE } from '@/blinddate/constant/blinddate.event.type';
 import { Broadcast } from '@/blinddate/constant/Broadcast';
 import Session from '@/session/session.entity';
 import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 
 @WebSocketGateway({
   namespace: 'blinddate',
@@ -40,7 +42,10 @@ export class BlindDateGateway
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly blindDateMessage: BlindDateMessage) {}
+  constructor(
+    private readonly blindDateMessage: BlindDateMessage,
+    private readonly httpService: HttpService,
+  ) {}
 
   afterInit() {
     console.log('WebSocket Gateway Initialized');
@@ -212,5 +217,40 @@ export class BlindDateGateway
     @MessageBody() data: { sessionId: string; message: string },
   ) {
     this.server.to(data.sessionId).emit('broadcast', data.message);
+  }
+
+  @SubscribeMessage('choice')
+  async handleVote(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: {
+      sessionId: string;
+      choicerId: number;
+      targetId: number;
+      choicerToken: string;
+    },
+  ) {
+    const session = this.sessionMap.get(data.sessionId);
+    if (session === undefined) {
+      throw new SessionIdNotFoundException();
+    }
+
+    // 매칭 성공 시
+    const voteResult = session.vote(data.choicerId, data.targetId);
+    if (voteResult) {
+      const requestHeader = {
+        headers: { Authorization: `Bearer ${data.choicerToken}` },
+      };
+      const requestBody = {
+        targetUserId: data.targetId,
+        title: `[과팅] ${new Date().toISOString().slice(0, 10)}`,
+      };
+      const url = `https://${process.env.SERVER_DOMAIN}${process.env.CREATE_CHATROOM_API}`;
+
+      // 채팅방 생성
+      await firstValueFrom(
+        this.httpService.post(url, requestBody, requestHeader),
+      );
+    }
   }
 }
