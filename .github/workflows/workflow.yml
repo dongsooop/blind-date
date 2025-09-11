@@ -32,6 +32,14 @@ jobs:
       - name: Add known hosts
         run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+      # QEMU 설정 (다중 아키텍처 빌드를 위한 에뮬레이터)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Docker Buildx 설정 (다중 플랫폼 빌드 드라이버 활성화)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
