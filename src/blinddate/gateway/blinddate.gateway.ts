@@ -84,6 +84,7 @@ export class BlindDateGateway
 
     // 회원 닉네임
     const name = session.getMemberName(Number(memberId));
+    client.emit('name', name);
 
     // 참여자 수
     const volunteer = session.getVolunteer();
