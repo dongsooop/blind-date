@@ -40,4 +40,8 @@ export default class Session {
     const voter = this.voteMap.get(voterId);
     return voter !== undefined && voter.has(voterId);
   }
+
+  public getAllMember() {
+    return Array.from(this.nameMap.entries());
+  }
 }

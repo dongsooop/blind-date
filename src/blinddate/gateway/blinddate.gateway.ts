@@ -32,10 +32,9 @@ export class BlindDateGateway
   private readonly JOINED_EVENT_NAME = 'joined';
   private readonly START_EVENT_NAME = 'start';
   private readonly MATCHING_ROOM_ID = 'MATCHING';
-  private readonly MAX_SESSION_MEMBER_COUNT = 1;
+  private readonly MAX_SESSION_MEMBER_COUNT = 2;
   private readonly EVENT_MESSAGE_AMOUNT = 3;
 
-  // private session: Session[] = [];
   private pointer: string = this.MATCHING_ROOM_ID;
   private sessionMap: Map<string, Session> = new Map();
 
@@ -112,6 +111,7 @@ export class BlindDateGateway
 
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId, memberId, name);
+    this.server.to(sessionId).emit('participants', session.getAllMember());
   }
 
   private async sendEventMessage(
@@ -218,10 +218,7 @@ export class BlindDateGateway
     @MessageBody()
     data: { sessionId: string; message: string; senderId: number },
   ) {
-    const session = this.sessionMap.get(data.sessionId);
-    if (session === undefined) {
-      throw new SessionIdNotFoundException();
-    }
+    const session = this.getSession(data.sessionId);
 
     this.server
       .to(data.sessionId)
@@ -247,10 +244,7 @@ export class BlindDateGateway
       choicerToken: string;
     },
   ) {
-    const session = this.sessionMap.get(data.sessionId);
-    if (session === undefined) {
-      throw new SessionIdNotFoundException();
-    }
+    const session = this.getSession(data.sessionId);
 
     // 매칭 성공 시
     const voteResult = session.vote(data.choicerId, data.targetId);
@@ -269,5 +263,14 @@ export class BlindDateGateway
         this.httpService.post(url, requestBody, requestHeader),
       );
     }
+  }
+
+  private getSession(sessionId: string) {
+    const session = this.sessionMap.get(sessionId);
+    if (!session) {
+      throw new SessionIdNotFoundException();
+    }
+
+    return session;
   }
 }
