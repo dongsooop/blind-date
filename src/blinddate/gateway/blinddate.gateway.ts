@@ -109,6 +109,18 @@ export class BlindDateGateway
         );
     });
 
+    this.server
+      .to(sessionId)
+      .emit(
+        EVENT_TYPE.SYSTEM,
+        new Broadcast(
+          '자, 그러면 지금부터 시작하겠습니다!',
+          0,
+          '동냥이',
+          new Date(),
+        ),
+      );
+
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId, memberId, name);
     this.server.to(sessionId).emit('participants', session.getAllMember());
@@ -135,7 +147,7 @@ export class BlindDateGateway
         setTimeout(() => {
           this.server.to(sessionId).emit(EVENT_TYPE.THAW);
           resolve();
-        }, 2000);
+        }, 5000); // 5초 후 시작
       });
 
       // 사용자 채팅 시간 주기
