@@ -98,6 +98,7 @@ export class BlindDateGateway
 
     // 마지막 참여자일 경우
     this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
+    this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
 
     // 시작 전 안내 멘트 전송
     this.blindDateMessage.getStartMessage().forEach((message) => {
