@@ -60,16 +60,23 @@ export class BlindDateGateway
     if (typeof client.handshake.query.sessionId !== 'string') {
       throw new SessionIdNotFoundException();
     }
+
+    // 적절한 session ID 할당
     const sessionId: string = this.assignSession(
       client.handshake.query.sessionId,
     );
-    // 새 세션 입장
-    await client.join(this.pointer);
+
+    // 세션 구독
+    await client.join(sessionId);
 
     // 매칭된 방
     const session = this.sessionMap.get(sessionId);
     if (session === undefined) {
       throw new SessionIdNotFoundException();
+    }
+
+    if (!session.isWaiting()) {
+      return;
     }
 
     // 회원 ID
@@ -98,6 +105,7 @@ export class BlindDateGateway
 
     // 마지막 참여자일 경우
     this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
+    session.start();
     this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
 
     // 시작 전 안내 멘트 전송
@@ -125,6 +133,7 @@ export class BlindDateGateway
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId, memberId, name);
     this.server.to(sessionId).emit('participants', session.getAllMember());
+    session.terminate();
   }
 
   private async sendEventMessage(
@@ -165,20 +174,28 @@ export class BlindDateGateway
    * @param sessionId
    * @private
    */
-  private assignSession(sessionId: string) {
-    if (sessionId === undefined || sessionId === null) {
+  private assignSession(sessionId: string | undefined) {
+    if (!sessionId) {
       throw new SessionIdNotFoundException();
+    }
+
+    // 재연결일 때
+    if (sessionId !== this.MATCHING_ROOM_ID) {
+      return sessionId;
     }
 
     // pointer가 가리키는 세션이 없을 때
     if (this.pointer === this.MATCHING_ROOM_ID) {
-      return this.createNewSession();
+      this.pointer = this.createNewSession();
+
+      return this.pointer;
     }
 
     // pointer가 가리키는 세션의 인원수가 찼을 때
     const volunteer = this.sessionMap.get(this.pointer)?.getVolunteer() || 0;
     if (volunteer >= this.MAX_SESSION_MEMBER_COUNT) {
-      return this.createNewSession();
+      this.pointer = this.createNewSession();
+      return this.pointer;
     }
 
     return this.pointer;

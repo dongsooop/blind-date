@@ -1,10 +1,10 @@
-import { SESSION_STATE } from '@/session/session.constant';
+import { SESSION_STATE, SESSION_STATE_TYPE } from '@/session/session.constant';
 
 export default class Session {
   private readonly id: string;
   private volunteer: number = 0;
   private readonly nameMap: Map<number, string> = new Map();
-  private readonly state = SESSION_STATE.WAITING;
+  private state: SESSION_STATE_TYPE = SESSION_STATE.WAITING;
   private nameCounter = 1;
   private voteMap: Map<number, Set<number>> = new Map();
 
@@ -43,5 +43,17 @@ export default class Session {
 
   public getAllMember() {
     return Array.from(this.nameMap.entries());
+  }
+
+  public start() {
+    this.state = SESSION_STATE.PROCESSING;
+  }
+
+  public terminate() {
+    this.state = SESSION_STATE.ENDED;
+  }
+
+  public isWaiting() {
+    return this.state === SESSION_STATE.WAITING;
   }
 }

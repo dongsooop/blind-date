@@ -4,4 +4,5 @@ export type SESSION_STATE_TYPE =
 export const SESSION_STATE = {
   WAITING: 'waiting',
   PROCESSING: 'processing',
+  ENDED: 'ended',
 } as const;
