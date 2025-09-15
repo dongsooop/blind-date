@@ -246,6 +246,7 @@ export class BlindDateGateway
     @MessageBody()
     data: { sessionId: string; message: string; senderId: number },
   ) {
+    console.log(`Received message from client: ${client.id}`);
     const session = this.getSession(data.sessionId);
 
     this.server
