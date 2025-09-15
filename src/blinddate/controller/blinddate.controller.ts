@@ -7,6 +7,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
+import { BlindDateAvailableRequest } from '@/blinddate/dto/blinddate.available.dto';
 
 @Controller('blinddate')
 export class BlindDateController {
@@ -20,7 +21,7 @@ export class BlindDateController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  public availableSession(@Body() expiredDate: Date) {
-    this.blindDateService.availableBlindDate(expiredDate);
+  public availableSession(@Body() request: BlindDateAvailableRequest) {
+    this.blindDateService.availableBlindDate(request);
   }
 }

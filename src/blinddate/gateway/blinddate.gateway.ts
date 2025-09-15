@@ -34,7 +34,6 @@ export class BlindDateGateway
   private readonly JOIN_EVENT_NAME = 'join';
   private readonly START_EVENT_NAME = 'start';
   private readonly MATCHING_ROOM_ID = 'MATCHING';
-  private readonly MAX_SESSION_MEMBER_COUNT = 2;
   private readonly EVENT_MESSAGE_AMOUNT = 3;
 
   private pointer: string = this.MATCHING_ROOM_ID;
@@ -103,7 +102,7 @@ export class BlindDateGateway
     this.updateSessionVolunteer(this.pointer, volunteer);
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
-    if (volunteer < this.MAX_SESSION_MEMBER_COUNT) {
+    if (volunteer < this.blindDateService.getMaxSessionMemberCount()) {
       return;
     }
 
@@ -203,7 +202,7 @@ export class BlindDateGateway
 
     // pointer가 가리키는 세션의 인원수가 찼을 때
     const volunteer = this.sessionMap.get(this.pointer)?.getVolunteer() || 0;
-    if (volunteer >= this.MAX_SESSION_MEMBER_COUNT) {
+    if (volunteer >= this.blindDateService.getMaxSessionMemberCount()) {
       this.pointer = this.createNewSession();
       return this.pointer;
     }
