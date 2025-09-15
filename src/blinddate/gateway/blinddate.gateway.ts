@@ -131,6 +131,12 @@ export class BlindDateGateway
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId, memberId, name);
     this.server.to(sessionId).emit('participants', session.getAllMember());
+    setTimeout(() => {
+      const notMatchedUser = session.getNotMatched();
+      notMatchedUser.forEach((id) => {
+        this.server.to(String(id)).emit('failed');
+      });
+    }, 1000);
     session.terminate();
   }
 
