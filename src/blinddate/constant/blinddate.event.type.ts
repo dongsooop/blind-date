@@ -5,4 +5,5 @@ export const EVENT_TYPE = {
   SYSTEM: 'system',
   BOARDCAST: 'broadcast',
   THAW: 'thaw',
+  CREATE_CHATROOM: 'create_chat',
 } as const;

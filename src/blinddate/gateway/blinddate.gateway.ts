@@ -30,6 +30,7 @@ export class BlindDateGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   private readonly JOINED_EVENT_NAME = 'joined';
+  private readonly JOIN_EVENT_NAME = 'join';
   private readonly START_EVENT_NAME = 'start';
   private readonly MATCHING_ROOM_ID = 'MATCHING';
   private readonly MAX_SESSION_MEMBER_COUNT = 2;
@@ -83,11 +84,11 @@ export class BlindDateGateway
     }
 
     // 세션에 회원 추가
-    session.addMember(memberId);
+    session.addMember(memberId, client.id);
 
     // 회원 닉네임
     const name = session.getMemberName(Number(memberId));
-    client.emit('name', name);
+    client.emit(this.JOIN_EVENT_NAME, { name, sessionId });
 
     // 참여자 수
     const volunteer = session.getVolunteer();
@@ -286,9 +287,20 @@ export class BlindDateGateway
       const url = `https://${process.env.SERVER_DOMAIN}${process.env.CREATE_CHATROOM_API}`;
 
       // 채팅방 생성
-      await firstValueFrom(
+      const response = await firstValueFrom(
         this.httpService.post(url, requestBody, requestHeader),
       );
+
+      const createdRoomId = response.data.roomId;
+      if (!createdRoomId || typeof createdRoomId !== 'string') {
+        throw new Error('방이 생성되지 않았습니다.');
+      }
+
+      const targetSocketId = session.getSocketIdByMemberId(data.targetId);
+      this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+      this.server
+        .to(targetSocketId)
+        .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
     }
   }
 
