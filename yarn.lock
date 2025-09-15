@@ -1882,6 +1882,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/node-cron@npm:^3.0.11":
+  version: 3.0.11
+  resolution: "@types/node-cron@npm:3.0.11"
+  checksum: 10c0/21cd0255988da2935bc8bf010da8b31624911ec10ef5d9a96a59c57193f60b27c1749b2e27c2a292a697d00195da5b8848a707345bb276abc39c96287ee82005
+  languageName: node
+  linkType: hard
+
 "@types/node@npm:*, @types/node@npm:>=10.0.0":
   version: 24.3.0
   resolution: "@types/node@npm:24.3.0"
@@ -3419,6 +3426,7 @@ __metadata:
     "@types/express": "npm:^5.0.0"
     "@types/jest": "npm:^30.0.0"
     "@types/node": "npm:^22.10.7"
+    "@types/node-cron": "npm:^3.0.11"
     "@types/supertest": "npm:^6.0.2"
     axios: "npm:^1.11.0"
     eslint: "npm:^9.18.0"
@@ -3426,6 +3434,7 @@ __metadata:
     eslint-plugin-prettier: "npm:^5.2.2"
     globals: "npm:^16.0.0"
     jest: "npm:^30.0.0"
+    node-cron: "npm:^4.2.1"
     prettier: "npm:^3.4.2"
     redis: "npm:^5.8.2"
     reflect-metadata: "npm:^0.2.2"
@@ -5815,6 +5824,13 @@ __metadata:
   version: 3.1.1
   resolution: "node-abort-controller@npm:3.1.1"
   checksum: 10c0/f7ad0e7a8e33809d4f3a0d1d65036a711c39e9d23e0319d80ebe076b9a3b4432b4d6b86a7fab65521de3f6872ffed36fc35d1327487c48eb88c517803403eda3
+  languageName: node
+  linkType: hard
+
+"node-cron@npm:^4.2.1":
+  version: 4.2.1
+  resolution: "node-cron@npm:4.2.1"
+  checksum: 10c0/804df01df230e96fd2f8ffcde004f4d5af953bccdf3ccf993dc450526dd65f553a2f2ad4bc0faf55c90c38cbc99c9ddbb88ee16cba3fc6bc74e606da6efb249e
   languageName: node
   linkType: hard
 

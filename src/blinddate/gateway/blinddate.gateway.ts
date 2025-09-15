@@ -18,6 +18,7 @@ import Session from '@/session/session.entity';
 import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { BlindDateService } from '@/blinddate/service/blinddate.service';
 
 @WebSocketGateway({
   namespace: 'blinddate',
@@ -45,6 +46,7 @@ export class BlindDateGateway
   constructor(
     private readonly blindDateMessage: BlindDateMessage,
     private readonly httpService: HttpService,
+    private readonly blindDateService: BlindDateService,
   ) {}
 
   afterInit() {
@@ -57,6 +59,10 @@ export class BlindDateGateway
    */
   async handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
+
+    if (!this.blindDateService.isAvailable()) {
+      console.log(`Blinddate service not available: ${client.id}`);
+    }
 
     // 적절한 session ID 할당
     const sessionId: string = this.assignSession(
