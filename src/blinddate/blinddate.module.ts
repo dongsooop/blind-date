@@ -7,11 +7,7 @@ import { BlindDateController } from '@/blinddate/controller/blinddate.controller
 
 @Module({
   imports: [HttpModule],
-  providers: [
-    BlindDateGateway,
-    BlindDateMessage,
-    BlindDateService,
-    BlindDateController,
-  ],
+  controllers: [BlindDateController],
+  providers: [BlindDateGateway, BlindDateMessage, BlindDateService],
 })
 export class BlindDateModule {}
