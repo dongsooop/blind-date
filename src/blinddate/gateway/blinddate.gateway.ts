@@ -57,10 +57,6 @@ export class BlindDateGateway
   async handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
 
-    if (typeof client.handshake.query.sessionId !== 'string') {
-      throw new SessionIdNotFoundException();
-    }
-
     // 적절한 session ID 할당
     const sessionId: string = this.assignSession(
       client.handshake.query.sessionId,
@@ -75,6 +71,7 @@ export class BlindDateGateway
       throw new SessionIdNotFoundException();
     }
 
+    // 대기중인 방이 아닌 경우
     if (!session.isWaiting()) {
       return;
     }
@@ -174,8 +171,8 @@ export class BlindDateGateway
    * @param sessionId
    * @private
    */
-  private assignSession(sessionId: string | undefined) {
-    if (!sessionId) {
+  private assignSession(sessionId: string | string[] | undefined) {
+    if (!sessionId || typeof sessionId !== 'string') {
       throw new SessionIdNotFoundException();
     }
 
