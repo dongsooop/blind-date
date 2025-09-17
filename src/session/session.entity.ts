@@ -9,7 +9,7 @@ export default class Session {
   private state: SESSION_STATE_TYPE = SESSION_STATE.WAITING;
   private nameCounter = 1;
   private voteMap: Map<number, Set<number>> = new Map();
-  private matched = new Set<number>();
+  private matched: Set<number> = new Set();
 
   public constructor(id: string) {
     this.id = id;
@@ -35,19 +35,20 @@ export default class Session {
   }
 
   public vote(voterId: number, targetId: number) {
-    const targetsVoters = this.voteMap.get(targetId);
-    if (targetsVoters !== undefined) {
-      targetsVoters.add(voterId);
-    }
+    const targetsVoters = this.voteMap.get(targetId) || new Set();
+    targetsVoters.add(voterId);
+
+    this.voteMap.set(targetId, targetsVoters);
 
     // 상대가 날 선택했을 때
     const voter = this.voteMap.get(voterId);
-    if (!voter || !voter.has(targetId)) {
+    if (this.matched.has(targetId) || !voter || !voter.has(targetId)) {
       return false;
     }
 
     this.matched.add(voterId);
     this.matched.add(targetId);
+    return true;
   }
 
   public updateSocket(memberId: number, socketId: string) {

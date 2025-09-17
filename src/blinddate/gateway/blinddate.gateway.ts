@@ -285,23 +285,16 @@ export class BlindDateGateway
     },
   ) {
     const session = this.getSession(data.sessionId);
+    console.log(
+      `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
+    );
 
     // 매칭 성공 시
     const voteResult = session.vote(data.choicerId, data.targetId);
     if (voteResult) {
-      const requestHeader = {
-        headers: { Authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
-      };
-      const requestBody = {
-        sourceUserId: data.choicerId,
-        targetUserId: data.targetId,
-        title: `[과팅] ${new Date().toISOString().slice(0, 10)}`,
-      };
-      const url = `https://${process.env.SERVER_DOMAIN}${process.env.CREATE_CHATROOM_API}`;
-
-      // 채팅방 생성
-      const response = await firstValueFrom(
-        this.httpService.post(url, requestBody, requestHeader),
+      const response = this.requestToCreateChatRoom(
+        data.choicerId,
+        data.targetId,
       );
 
       const createdRoomId = response.data.roomId;
@@ -315,6 +308,26 @@ export class BlindDateGateway
         .to(targetSocketId)
         .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
     }
+  }
+
+  private async requestToCreateChatRoom(
+    sourceUserId: number,
+    targetUserId: number,
+  ) {
+    const requestHeader = {
+      headers: { Authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
+    };
+    const requestBody = {
+      sourceUserId,
+      targetUserId,
+      title: `[과팅] ${new Date().toISOString().slice(0, 10)}`,
+    };
+    const url = `https://${process.env.SERVER_DOMAIN}${process.env.CREATE_CHATROOM_API}`;
+
+    // 채팅방 생성
+    return await firstValueFrom(
+      this.httpService.post(url, requestBody, requestHeader),
+    );
   }
 
   private getSession(sessionId: string) {
