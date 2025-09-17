@@ -281,7 +281,6 @@ export class BlindDateGateway
       sessionId: string;
       choicerId: number;
       targetId: number;
-      choicerToken: string;
     },
   ) {
     const session = this.getSession(data.sessionId);
@@ -290,7 +289,7 @@ export class BlindDateGateway
     const voteResult = session.vote(data.choicerId, data.targetId);
     if (voteResult) {
       const requestHeader = {
-        headers: { Authorization: `Bearer ${data.choicerToken}` },
+        headers: { Authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
       };
       const requestBody = {
         targetUserId: data.targetId,
