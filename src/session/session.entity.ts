@@ -42,6 +42,7 @@ export default class Session {
 
     // 상대가 날 선택했을 때
     const voter = this.voteMap.get(voterId);
+    console.log(targetsVoters.size + ' :: ' + voter?.size);
     if (this.matched.has(targetId) || !voter || !voter.has(targetId)) {
       return false;
     }

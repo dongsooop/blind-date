@@ -292,7 +292,7 @@ export class BlindDateGateway
     // 매칭 성공 시
     const voteResult = session.vote(data.choicerId, data.targetId);
     if (voteResult) {
-      const response = this.requestToCreateChatRoom(
+      const response = await this.requestToCreateChatRoom(
         data.choicerId,
         data.targetId,
       );
