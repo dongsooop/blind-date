@@ -174,7 +174,7 @@ export class BlindDateGateway
         setTimeout(() => {
           resolve();
         }, 60000); // 1분
-      // }, 180000);
+        // }, 180000);
       });
     }
   }
@@ -293,6 +293,7 @@ export class BlindDateGateway
         headers: { Authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
       };
       const requestBody = {
+        sourceUserId: data.choicerId,
         targetUserId: data.targetId,
         title: `[과팅] ${new Date().toISOString().slice(0, 10)}`,
       };
