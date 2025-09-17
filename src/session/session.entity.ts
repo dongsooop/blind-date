@@ -29,6 +29,11 @@ export default class Session {
   }
 
   public addMember(memberId: number, socketId: string) {
+    if (this.socketMap.has(memberId)) {
+      this.updateSocket(memberId, socketId);
+      return;
+    }
+
     this.volunteer++;
     this.nameMap.set(memberId, `동냥이${this.nameCounter++}`);
     this.socketMap.set(memberId, socketId);
@@ -42,7 +47,6 @@ export default class Session {
 
     // 상대가 날 선택했을 때
     const voter = this.voteMap.get(voterId);
-    console.log(targetsVoters.size + ' :: ' + voter?.size);
     if (this.matched.has(targetId) || !voter || !voter.has(targetId)) {
       return false;
     }
@@ -52,7 +56,7 @@ export default class Session {
     return true;
   }
 
-  public updateSocket(memberId: number, socketId: string) {
+  private updateSocket(memberId: number, socketId: string) {
     // 등록되지 않은 사용자는 소켓 업데이트가 불가능
     if (!this.socketMap.has(memberId)) {
       throw new MemberIdNotAvailableException();
