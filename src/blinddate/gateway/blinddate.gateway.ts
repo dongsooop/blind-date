@@ -141,7 +141,7 @@ export class BlindDateGateway
       notMatchedUser.forEach((id) => {
         this.server.to(String(id)).emit('failed');
       });
-    }, 1000);
+    }, 12000);
     session.terminate();
   }
 
