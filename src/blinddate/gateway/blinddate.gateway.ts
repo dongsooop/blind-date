@@ -139,7 +139,7 @@ export class BlindDateGateway
     setTimeout(() => {
       const notMatchedUser = session.getNotMatched();
       notMatchedUser.forEach((id) => {
-        this.server.to(String(id)).emit('failed');
+        this.server.to(session.getSocketIdByMemberId(id)).emit('failed');
       });
     }, 12000);
     session.terminate();

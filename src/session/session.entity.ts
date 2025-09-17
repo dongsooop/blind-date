@@ -45,7 +45,7 @@ export default class Session {
 
     this.voteMap.set(targetId, targetsVoters);
 
-    // 상대가 날 선택했을 때
+    // 상대가 날 선택하지 않았을 때
     const voter = this.voteMap.get(voterId);
     if (this.matched.has(targetId) || !voter || !voter.has(targetId)) {
       return false;
@@ -90,8 +90,8 @@ export default class Session {
   }
 
   public getNotMatched() {
-    return Array.from(this.nameMap.entries())
-      .filter((entry) => !this.matched.has(entry[0]))
-      .map((entry) => entry[0]);
+    return Array.from(this.nameMap.keys()).filter(
+      (memberId: number) => !this.matched.has(memberId),
+    );
   }
 }
