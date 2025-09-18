@@ -158,7 +158,7 @@ export class BlindDateGateway
         .to(sessionId)
         .emit(
           EVENT_TYPE.SYSTEM,
-          new Broadcast(message, memberId, name, new Date()),
+          new Broadcast(message, 0, '동냥이', new Date()),
         );
 
       // 메시지 전달 후 채팅 활성화
