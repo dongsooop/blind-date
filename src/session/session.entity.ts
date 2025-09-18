@@ -80,6 +80,10 @@ export default class Session {
     return this.state === SESSION_STATE.WAITING;
   }
 
+  public isTerminated() {
+    return this.state === SESSION_STATE.ENDED;
+  }
+
   public getSocketIdByMemberId(memberId: number) {
     const socketId = this.socketMap.get(memberId);
     if (!socketId) {

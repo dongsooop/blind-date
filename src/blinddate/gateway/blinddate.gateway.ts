@@ -68,19 +68,19 @@ export class BlindDateGateway
       client.handshake.query.sessionId,
     );
 
-    // 세션 구독
-    await client.join(sessionId);
-
     // 매칭된 방
     const session = this.sessionMap.get(sessionId);
     if (session === undefined) {
       throw new SessionIdNotFoundException();
     }
 
-    // 대기중인 방이 아닌 경우
-    if (!session.isWaiting()) {
+    // 종료된 방이면 종료
+    if (session.isTerminated()) {
       return;
     }
+
+    // 세션 구독
+    await client.join(sessionId);
 
     // 회원 ID
     const memberId = Number(client.handshake.query.memberId);
@@ -90,6 +90,11 @@ export class BlindDateGateway
 
     // 세션에 회원 추가
     session.addMember(memberId, client.id);
+
+    // 대기중인 방이 아닌 경우 재입장으로 간주하고 종료
+    if (!session.isWaiting()) {
+      return;
+    }
 
     // 회원 닉네임
     const name = session.getMemberName(Number(memberId));
