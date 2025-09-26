@@ -27,7 +27,8 @@ export class SessionRepository {
       .multi()
       .hSet(sessionKeyName, 'volunteer', 0)
       .hSet(sessionKeyName, 'nameCounter', 1)
-      .hSet(sessionKeyName, 'state', SESSION_STATE.WAITING);
+      .hSet(sessionKeyName, 'state', SESSION_STATE.WAITING)
+      .expire(sessionKeyName, 60 * 60 * 24);
 
     return sessionId;
   }
