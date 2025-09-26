@@ -4,9 +4,10 @@ import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 import { HttpModule } from '@nestjs/axios';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
 import { BlindDateController } from '@/blinddate/controller/blinddate.controller';
+import { SessionModule } from '@/session/session.module';
 
 @Module({
-  imports: [HttpModule],
+  imports: [HttpModule, SessionModule],
   controllers: [BlindDateController],
   providers: [BlindDateGateway, BlindDateMessage, BlindDateService],
 })

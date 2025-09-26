@@ -9,16 +9,19 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { randomUUID } from 'node:crypto';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 import { EVENT_TYPE } from '@/blinddate/constant/blinddate.event.type';
 import { Broadcast } from '@/blinddate/constant/Broadcast';
-import Session from '@/session/session.entity';
+import Session from '@/session/entity/session.entity';
 import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
+import { SessionRepository } from '@/session/repository/session.repository';
+import { REDIS_CLIENT } from '@/redis/redis.module';
+import { Inject } from '@nestjs/common';
+import type { RedisClientType } from 'redis';
 
 @WebSocketGateway({
   namespace: 'blinddate',
@@ -30,13 +33,9 @@ import { BlindDateService } from '@/blinddate/service/blinddate.service';
 export class BlindDateGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
-  private readonly JOINED_EVENT_NAME = 'joined';
-  private readonly JOIN_EVENT_NAME = 'join';
-  private readonly START_EVENT_NAME = 'start';
   private readonly MATCHING_ROOM_ID = 'MATCHING';
   private readonly EVENT_MESSAGE_AMOUNT = 3;
 
-  private pointer: string = this.MATCHING_ROOM_ID;
   private sessionMap: Map<string, Session> = new Map();
 
   @WebSocketServer()
@@ -46,6 +45,8 @@ export class BlindDateGateway
     private readonly blindDateMessage: BlindDateMessage,
     private readonly httpService: HttpService,
     private readonly blindDateService: BlindDateService,
+    @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
+    private readonly sessionRepository: SessionRepository,
   ) {}
 
   afterInit() {
@@ -63,16 +64,13 @@ export class BlindDateGateway
       console.log(`Blinddate service not available: ${client.id}`);
     }
 
-    // 적절한 session ID 할당
-    const sessionId: string = this.assignSession(
+    // 적절한 repository ID 할당
+    const sessionId: string = await this.assignSession(
       client.handshake.query.sessionId,
     );
 
     // 매칭된 방
-    const session = this.sessionMap.get(sessionId);
-    if (session === undefined) {
-      throw new SessionIdNotFoundException();
-    }
+    const session: Session = await this.sessionRepository.getSession(sessionId);
 
     // 종료된 방이면 종료
     if (session.isTerminated()) {
@@ -89,7 +87,7 @@ export class BlindDateGateway
     }
 
     // 세션에 회원 추가
-    session.addMember(memberId, client.id);
+    await this.sessionRepository.addMember(sessionId, memberId, client.id);
 
     // 대기중인 방이 아닌 경우 재입장으로 간주하고 종료
     if (!session.isWaiting()) {
@@ -97,14 +95,14 @@ export class BlindDateGateway
     }
 
     // 회원 닉네임
-    const name = session.getMemberName(Number(memberId));
-    client.emit(this.JOIN_EVENT_NAME, { name, sessionId });
+    const name = this.sessionRepository.getName(sessionId, Number(memberId));
+    client.emit(EVENT_TYPE.JOINED, { name, sessionId });
 
     // 참여자 수
     const volunteer = session.getVolunteer();
 
     // 방 인원 업데이트 이벤트 발행
-    this.updateSessionVolunteer(this.pointer, volunteer);
+    this.updateSessionVolunteer(sessionId, volunteer);
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
     if (volunteer < this.blindDateService.getMaxSessionMemberCount()) {
@@ -113,7 +111,7 @@ export class BlindDateGateway
 
     // 마지막 참여자일 경우
     this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
-    session.start();
+    await this.sessionRepository.start(sessionId);
     this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
 
     // 시작 전 안내 멘트 전송
@@ -126,35 +124,31 @@ export class BlindDateGateway
         );
     });
 
+    // 시간별로 이벤트 메시지 전송
+    await this.sendEventMessage(sessionId);
     this.server
       .to(sessionId)
-      .emit(
-        EVENT_TYPE.SYSTEM,
-        new Broadcast(
-          '자, 그러면 지금부터 시작하겠습니다!',
-          0,
-          '동냥이',
-          new Date(),
-        ),
-      );
+      .emit('participants', this.sessionRepository.getAllMembers(sessionId));
 
-    // 시간별로 이벤트 메시지 전송
-    await this.sendEventMessage(sessionId, memberId, name);
-    this.server.to(sessionId).emit('participants', session.getAllMember());
-    setTimeout(() => {
-      const notMatchedUser = session.getNotMatched();
-      notMatchedUser.forEach((id) => {
-        this.server.to(session.getSocketIdByMemberId(id)).emit('failed');
-      });
-    }, 12000);
+    await new Promise<void>((resolve) => setTimeout(resolve, 12000));
+
+    const notMatched = await this.sessionRepository.getNotMatched(sessionId);
+
+    for (const id of notMatched) {
+      const socketId = await this.sessionRepository.getSocketIdByMemberId(
+        sessionId,
+        id,
+      );
+      if (!socketId) {
+        return;
+      }
+      this.server.to(socketId).emit('failed');
+    }
+
     session.terminate();
   }
 
-  private async sendEventMessage(
-    sessionId: string,
-    memberId: number,
-    name: string,
-  ) {
+  private async sendEventMessage(sessionId: string) {
     for (const message of this.blindDateMessage.getEventMessage(
       this.EVENT_MESSAGE_AMOUNT,
     )) {
@@ -189,7 +183,7 @@ export class BlindDateGateway
    * @param sessionId
    * @private
    */
-  private assignSession(sessionId: string | string[] | undefined) {
+  private async assignSession(sessionId: string | string[] | undefined) {
     if (!sessionId || typeof sessionId !== 'string') {
       throw new SessionIdNotFoundException();
     }
@@ -199,33 +193,20 @@ export class BlindDateGateway
       return sessionId;
     }
 
-    // pointer가 가리키는 세션이 없을 때
-    if (this.pointer === this.MATCHING_ROOM_ID) {
-      this.pointer = this.createNewSession();
+    const pointer = await this.sessionRepository.getPointer();
 
-      return this.pointer;
+    // pointer가 가리키는 세션이 없을 때
+    if (pointer === null) {
+      return this.sessionRepository.create();
     }
 
     // pointer가 가리키는 세션의 인원수가 찼을 때
-    const volunteer = this.sessionMap.get(this.pointer)?.getVolunteer() || 0;
+    const volunteer = this.sessionMap.get(pointer)?.getVolunteer() || 0;
     if (volunteer >= this.blindDateService.getMaxSessionMemberCount()) {
-      this.pointer = this.createNewSession();
-      return this.pointer;
+      return this.sessionRepository.create();
     }
 
-    return this.pointer;
-  }
-
-  /**
-   * 세션 생성
-   * @private
-   */
-  private createNewSession(): string {
-    const sessionId = randomUUID();
-    this.pointer = sessionId;
-    this.sessionMap.set(sessionId, new Session(sessionId));
-
-    return sessionId;
+    return pointer;
   }
 
   private getVolunteer(sessionId: string): number {
@@ -241,13 +222,13 @@ export class BlindDateGateway
   }
 
   private emitStartEvent(sessionId: string) {
-    this.server.to(sessionId).emit(this.START_EVENT_NAME, {
+    this.server.to(sessionId).emit(EVENT_TYPE.START, {
       sessionId,
     });
   }
 
   private updateSessionVolunteer(sessionId: string, volunteer: number): void {
-    this.server.to(sessionId).emit(this.JOINED_EVENT_NAME, {
+    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, {
       sessionId,
       volunteer,
     });
@@ -258,22 +239,21 @@ export class BlindDateGateway
   }
 
   @SubscribeMessage('message')
-  handleMessage(
+  async handleMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody()
     data: { sessionId: string; message: string; senderId: number },
   ) {
     console.log(`Received message from client: ${client.id}`);
-    const session = this.getSession(data.sessionId);
 
     this.server
       .to(data.sessionId)
       .emit(
-        'broadcast',
+        EVENT_TYPE.BROADCAST,
         new Broadcast(
           data.message,
           data.senderId,
-          session.getMemberName(data.senderId),
+          await this.sessionRepository.getName(data.sessionId, data.senderId),
           new Date(),
         ),
       );
@@ -289,26 +269,36 @@ export class BlindDateGateway
       targetId: number;
     },
   ) {
-    const session = this.getSession(data.sessionId);
     console.log(
       `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
     );
 
     // 매칭 성공 시
-    const voteResult = session.vote(data.choicerId, data.targetId);
+    const voteResult = await this.sessionRepository.choice(
+      data.sessionId,
+      data.choicerId,
+      data.targetId,
+    );
     if (voteResult) {
       const response = await this.requestToCreateChatRoom(
         data.choicerId,
         data.targetId,
       );
 
-      const createdRoomId = response.data.roomId;
+      const createdRoomId: string = (response.data as { roomId: string })
+        .roomId;
       if (!createdRoomId || typeof createdRoomId !== 'string') {
         throw new Error('방이 생성되지 않았습니다.');
       }
-
-      const targetSocketId = session.getSocketIdByMemberId(data.targetId);
       this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+
+      const targetSocketId = await this.sessionRepository.getSocketIdByMemberId(
+        data.sessionId,
+        data.targetId,
+      );
+      if (!targetSocketId) {
+        return;
+      }
       this.server
         .to(targetSocketId)
         .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
@@ -333,14 +323,5 @@ export class BlindDateGateway
     return await firstValueFrom(
       this.httpService.post(url, requestBody, requestHeader),
     );
-  }
-
-  private getSession(sessionId: string) {
-    const session = this.sessionMap.get(sessionId);
-    if (!session) {
-      throw new SessionIdNotFoundException();
-    }
-
-    return session;
   }
 }
