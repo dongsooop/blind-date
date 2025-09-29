@@ -47,7 +47,7 @@ export class SessionRepository {
     memberId: number,
     socketId: string,
   ) {
-    const clientKeyName = this.getSessionKeyName(sessionId);
+    const clientKeyName = this.getClientsKeyName(sessionId);
     const clients = new Set(await this.redisClient.sMembers(clientKeyName));
 
     const socketKeyName = this.getSocketKeyName(sessionId);
