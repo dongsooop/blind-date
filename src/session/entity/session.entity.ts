@@ -5,8 +5,8 @@ import {
 
 export default class Session {
   private readonly volunteer: number;
-  private state: SESSION_STATE_TYPE;
-  private nameCounter: number;
+  private readonly state: SESSION_STATE_TYPE;
+  private readonly nameCounter: number;
 
   constructor({
     volunteer,
@@ -24,10 +24,6 @@ export default class Session {
 
   public getVolunteer() {
     return this.volunteer;
-  }
-
-  public terminate() {
-    this.state = SESSION_STATE.ENDED;
   }
 
   public isWaiting() {

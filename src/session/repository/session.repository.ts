@@ -37,7 +37,6 @@ export class SessionRepository {
       .hSet(sessionKeyName, 'volunteer', 0)
       .hSet(sessionKeyName, 'nameCounter', 1)
       .hSet(sessionKeyName, 'state', SESSION_STATE.WAITING)
-      .expire(sessionKeyName, 60 * 60 * 24)
       .exec();
 
     return sessionId;
@@ -181,6 +180,12 @@ export class SessionRepository {
     }
 
     return new Session(sessionData);
+  }
+
+  public async terminate(sessionId: string) {
+    const sessionKeyName = this.getSessionKeyName(sessionId);
+
+    await this.redisClient.hSet(sessionKeyName, 'state', SESSION_STATE.ENDED);
   }
 
   public async startBlindDate() {

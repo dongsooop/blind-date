@@ -146,7 +146,7 @@ export class BlindDateGateway
       this.server.to(socketId).emit('failed');
     }
 
-    session.terminate();
+    await this.sessionRepository.terminate(sessionId);
   }
 
   private async sendEventMessage(sessionId: string) {
