@@ -8,6 +8,6 @@ export const EVENT_TYPE = {
   CREATE_CHATROOM: 'create_chat',
   JOINED: 'joined',
   MATCHING: 'matching',
-  START: 'started',
+  START: 'start',
   JOIN: 'join',
 } as const;
