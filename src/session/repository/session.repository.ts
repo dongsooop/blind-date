@@ -48,9 +48,8 @@ export class SessionRepository {
     memberId: number,
     socketId: string,
   ) {
-    const clients = new Set(
-      await this.redisClient.sMembers(this.getClientsKeyName(sessionId)),
-    );
+    const clientKeyName = this.getSessionKeyName(sessionId);
+    const clients = new Set(await this.redisClient.sMembers(clientKeyName));
 
     const socketKeyName = this.getSocketKeyName(sessionId);
 
@@ -71,7 +70,8 @@ export class SessionRepository {
       .hIncrBy(sessionKeyName, 'volunteer', 1) // 사용자 증가
       .hSet(this.getNameKeys(sessionId), memberId, `동냥이${nameCount}`) // 회원 id에 사용자 이름 할당
       .hIncrBy(sessionKeyName, 'nameCounter', 1) // 사용자 식별자 증가
-      .hSet(socketKeyName, memberId, socketId)
+      .hSet(socketKeyName, memberId, socketId) // 소켓 목록에 사용자 id 바인드
+      .sAdd(clientKeyName, memberId.toString()) // 사용자 목록에 추가
       .exec(); // 회원 id에 소켓 id 할당
   }
 
