@@ -6,15 +6,13 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class BlindDateService {
-  private status = false;
-  private maxSessionMemberCount: number;
-  private eventMessageAmount: number;
-
   constructor(private readonly sessionRepository: SessionRepository) {}
 
-  public availableBlindDate(request: BlindDateAvailableRequest) {
-    this.status = true;
-    this.maxSessionMemberCount = request.getMaxSessionMemberCount();
+  public async availableBlindDate(request: BlindDateAvailableRequest) {
+    await this.sessionRepository.startBlindDate();
+    await this.sessionRepository.setMaxSessionMemberCount(
+      request.getMaxSessionMemberCount(),
+    );
 
     const expiredMinute = request.getExpiredDate().getMinutes();
     const expiredHour = request.getExpiredDate().getHours();
@@ -41,7 +39,12 @@ export class BlindDateService {
     return false;
   }
 
-  public getMaxSessionMemberCount() {
-    return this.maxSessionMemberCount;
+  public async getMaxSessionMemberCount() {
+    const memberCount = await this.sessionRepository.getMaxSessionMemberCount();
+    if (!memberCount) {
+      return 0;
+    }
+
+    return Number(memberCount);
   }
 }

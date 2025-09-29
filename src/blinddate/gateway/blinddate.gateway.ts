@@ -105,7 +105,8 @@ export class BlindDateGateway
     this.updateSessionVolunteer(sessionId, volunteer);
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
-    if (volunteer < this.blindDateService.getMaxSessionMemberCount()) {
+    const memberCount = await this.blindDateService.getMaxSessionMemberCount();
+    if (volunteer < memberCount) {
       return;
     }
 
@@ -202,7 +203,8 @@ export class BlindDateGateway
 
     // pointer가 가리키는 세션의 인원수가 찼을 때
     const volunteer = this.sessionMap.get(pointer)?.getVolunteer() || 0;
-    if (volunteer >= this.blindDateService.getMaxSessionMemberCount()) {
+    const memberCount = await this.blindDateService.getMaxSessionMemberCount();
+    if (volunteer >= memberCount) {
       return this.sessionRepository.create();
     }
 

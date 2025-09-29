@@ -21,7 +21,7 @@ export class BlindDateController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  public availableSession(
+  public async availableSession(
     @Body() request: { expiredDate: string; maxSessionMemberCount: number },
   ) {
     const expired = new Date(request.expiredDate);
@@ -29,6 +29,6 @@ export class BlindDateController {
       expired,
       request.maxSessionMemberCount,
     );
-    this.blindDateService.availableBlindDate(req);
+    await this.blindDateService.availableBlindDate(req);
   }
 }

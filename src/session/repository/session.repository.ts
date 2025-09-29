@@ -153,6 +153,14 @@ export class SessionRepository {
     return this.redisClient.hGetAll(redisSessionName);
   }
 
+  public async setMaxSessionMemberCount(count: number) {
+    await this.redisClient.hSet('blinddate', 'maxMemberCount', count);
+  }
+
+  public getMaxSessionMemberCount() {
+    return this.redisClient.hGet('blinddate', 'maxMemberCount');
+  }
+
   public async getSession(sessionId: string) {
     const rawData = await this.getSessionData(sessionId);
     const sessionData = {
