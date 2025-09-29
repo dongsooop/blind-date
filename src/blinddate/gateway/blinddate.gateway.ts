@@ -19,9 +19,6 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
 import { SessionRepository } from '@/session/repository/session.repository';
-import { REDIS_CLIENT } from '@/redis/redis.module';
-import { Inject } from '@nestjs/common';
-import type { RedisClientType } from 'redis';
 
 @WebSocketGateway({
   namespace: 'blinddate',
@@ -45,7 +42,6 @@ export class BlindDateGateway
     private readonly blindDateMessage: BlindDateMessage,
     private readonly httpService: HttpService,
     private readonly blindDateService: BlindDateService,
-    @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
     private readonly sessionRepository: SessionRepository,
   ) {}
 
