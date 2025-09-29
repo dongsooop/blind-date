@@ -91,7 +91,10 @@ export class BlindDateGateway
     }
 
     // 회원 닉네임
-    const name = this.sessionRepository.getName(sessionId, Number(memberId));
+    const name = await this.sessionRepository.getName(
+      sessionId,
+      Number(memberId),
+    );
     client.emit(EVENT_TYPE.JOINED, { name, sessionId });
 
     // 참여자 수
