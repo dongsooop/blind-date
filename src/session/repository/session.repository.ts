@@ -20,6 +20,10 @@ export class SessionRepository {
     return this.redisClient.get(this.getPointerKeyName());
   }
 
+  public async setPointerExpire(expiredTime: number) {
+    await this.redisClient.expireAt(this.getPointerKeyName(), expiredTime);
+  }
+
   public async setPointer(pointer: string) {
     await this.redisClient.set(this.getPointerKeyName(), pointer);
   }

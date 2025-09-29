@@ -13,6 +13,9 @@ export class BlindDateService {
     await this.sessionRepository.setMaxSessionMemberCount(
       request.getMaxSessionMemberCount(),
     );
+    await this.sessionRepository.setPointerExpire(
+      request.getExpiredDate().getTime(),
+    );
 
     const expiredMinute = request.getExpiredDate().getMinutes();
     const expiredHour = request.getExpiredDate().getHours();
