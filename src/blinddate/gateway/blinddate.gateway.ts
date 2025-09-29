@@ -56,7 +56,8 @@ export class BlindDateGateway
   async handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
 
-    if (!this.blindDateService.isAvailable()) {
+    const isAvailable = await this.blindDateService.isAvailable();
+    if (!isAvailable) {
       console.log(`Blinddate service not available: ${client.id}`);
     }
 

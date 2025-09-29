@@ -2,7 +2,9 @@ import nodeCron from 'node-cron';
 import { BlindDateAvailableRequest } from '@/blinddate/dto/blinddate.available.dto';
 import { SessionRepository } from '@/session/repository/session.repository';
 import { BLIND_DATE_STATUS } from '@/blinddate/constant/blinddate.status';
+import { Injectable } from '@nestjs/common';
 
+@Injectable()
 export class BlindDateService {
   private status = false;
   private maxSessionMemberCount: number;
@@ -20,8 +22,8 @@ export class BlindDateService {
     const expiredMonth = request.getExpiredDate().getMonth();
     const expression = `0 ${expiredMinute} ${expiredHour} ${expiredDay} ${expiredMonth + 1} * *`;
 
-    nodeCron.schedule(expression, () => {
-      this.sessionRepository.closeBlindDate();
+    nodeCron.schedule(expression, async () => {
+      await this.sessionRepository.closeBlindDate();
     });
   }
 

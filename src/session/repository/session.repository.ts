@@ -20,16 +20,17 @@ export class SessionRepository {
     return this.redisClient.get(this.getPointerKeyName());
   }
 
-  public create() {
+  public async create() {
     const sessionId = randomUUID();
     const sessionKeyName = this.getSessionKeyName(sessionId);
 
-    this.redisClient
+    await this.redisClient
       .multi()
       .hSet(sessionKeyName, 'volunteer', 0)
       .hSet(sessionKeyName, 'nameCounter', 1)
       .hSet(sessionKeyName, 'state', SESSION_STATE.WAITING)
-      .expire(sessionKeyName, 60 * 60 * 24);
+      .expire(sessionKeyName, 60 * 60 * 24)
+      .exec();
 
     return sessionId;
   }
@@ -57,12 +58,13 @@ export class SessionRepository {
       await this.redisClient.hGet(sessionKeyName, 'nameCounter'),
     );
 
-    this.redisClient
+    await this.redisClient
       .multi()
       .hIncrBy(sessionKeyName, 'volunteer', 1) // 사용자 증가
       .hSet(this.getNameKeys(sessionId), memberId, `동냥이${nameCount}`) // 회원 id에 사용자 이름 할당
       .hIncrBy(sessionKeyName, 'nameCounter', 1) // 사용자 식별자 증가
-      .hSet(socketKeyName, memberId, socketId); // 회원 id에 소켓 id 할당
+      .hSet(socketKeyName, memberId, socketId)
+      .exec(); // 회원 id에 소켓 id 할당
   }
 
   public async getName(sessionId: string, memberId: number) {
@@ -165,12 +167,12 @@ export class SessionRepository {
     return new Session(sessionData);
   }
 
-  public startBlindDate() {
-    this.redisClient.hSet('blinddate', 'status', BLIND_DATE_STATUS.OPEN);
+  public async startBlindDate() {
+    await this.redisClient.hSet('blinddate', 'status', BLIND_DATE_STATUS.OPEN);
   }
 
-  public closeBlindDate() {
-    this.redisClient.hSet('blinddate', 'status', BLIND_DATE_STATUS.CLOSE);
+  public async closeBlindDate() {
+    await this.redisClient.hSet('blinddate', 'status', BLIND_DATE_STATUS.CLOSE);
   }
 
   public getBlindDateStatus() {
