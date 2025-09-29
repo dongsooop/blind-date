@@ -189,7 +189,11 @@ export class SessionRepository {
   }
 
   public async startBlindDate() {
-    await this.redisClient.hSet('blinddate', 'status', BLIND_DATE_STATUS.OPEN);
+    await this.redisClient
+      .multi()
+      .hSet('blinddate', 'status', BLIND_DATE_STATUS.OPEN)
+      .expire('blinddate', 60 * 60 * 24)
+      .exec();
   }
 
   public async closeBlindDate() {

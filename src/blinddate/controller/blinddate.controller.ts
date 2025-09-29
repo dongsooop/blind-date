@@ -24,6 +24,10 @@ export class BlindDateController {
   public async availableSession(
     @Body() request: { expiredDate: string; maxSessionMemberCount: number },
   ) {
+    if (await this.blindDateService.isAvailable()) {
+      return;
+    }
+
     const expired = new Date(request.expiredDate);
     const req = new BlindDateAvailableRequest(
       expired,
