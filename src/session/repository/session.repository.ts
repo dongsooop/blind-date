@@ -8,6 +8,7 @@ import {
 } from '@/session/const/session.constant';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import Session from '@/session/entity/session.entity';
+import { BLIND_DATE_STATUS } from '@/blinddate/constant/blinddate.status';
 
 @Injectable()
 export class SessionRepository {
@@ -162,6 +163,18 @@ export class SessionRepository {
     }
 
     return new Session(sessionData);
+  }
+
+  public startBlindDate() {
+    this.redisClient.hSet('blinddate', 'status', BLIND_DATE_STATUS.OPEN);
+  }
+
+  public closeBlindDate() {
+    this.redisClient.hSet('blinddate', 'status', BLIND_DATE_STATUS.CLOSE);
+  }
+
+  public getBlindDateStatus() {
+    return this.redisClient.hGet('blinddate', 'status');
   }
 
   private getNameKeys(sessionId: string) {

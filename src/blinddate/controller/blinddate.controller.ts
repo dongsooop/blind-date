@@ -15,8 +15,8 @@ export class BlindDateController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  public isAvailable() {
-    return this.blindDateService.isAvailable();
+  public async isAvailable() {
+    return await this.blindDateService.isAvailable();
   }
 
   @Post()
