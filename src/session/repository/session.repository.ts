@@ -20,7 +20,11 @@ export class SessionRepository {
     return this.redisClient.get(this.getPointerKeyName());
   }
 
-  public async create() {
+  public async setPointer(pointer: string) {
+    await this.redisClient.set(this.getPointerKeyName(), pointer);
+  }
+
+  public async create(): Promise<string> {
     const sessionId = randomUUID();
     const sessionKeyName = this.getSessionKeyName(sessionId);
 

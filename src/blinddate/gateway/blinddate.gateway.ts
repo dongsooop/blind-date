@@ -71,7 +71,6 @@ export class BlindDateGateway
 
     // 종료된 방이면 종료
     if (session.isTerminated()) {
-      console.log(1);
       return;
     }
 
@@ -199,7 +198,9 @@ export class BlindDateGateway
 
     // pointer가 가리키는 세션이 없을 때
     if (pointer === null) {
-      return this.sessionRepository.create();
+      const newPointer = await this.sessionRepository.create();
+      await this.sessionRepository.setPointer(newPointer);
+      return newPointer;
     }
 
     // pointer가 가리키는 세션의 인원수가 찼을 때
@@ -207,7 +208,9 @@ export class BlindDateGateway
       (await this.sessionRepository.getSession(pointer)).getVolunteer() || 0;
     const memberCount = await this.blindDateService.getMaxSessionMemberCount();
     if (volunteer >= memberCount) {
-      return this.sessionRepository.create();
+      const newPointer = await this.sessionRepository.create();
+      await this.sessionRepository.setPointer(newPointer);
+      return newPointer;
     }
 
     return pointer;
