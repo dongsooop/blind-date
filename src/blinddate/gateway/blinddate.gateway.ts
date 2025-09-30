@@ -19,7 +19,10 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
 import { SessionRepository } from '@/session/repository/session.repository';
+import { CustomWsExceptionFilter } from '@/exception-filter/websocket.exception.filter';
+import { UseFilters } from '@nestjs/common';
 
+@UseFilters(CustomWsExceptionFilter)
 @WebSocketGateway({
   namespace: 'blinddate',
   cors: {
@@ -30,13 +33,11 @@ import { SessionRepository } from '@/session/repository/session.repository';
 export class BlindDateGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
-  private readonly MATCHING_ROOM_ID = 'MATCHING';
-  private readonly EVENT_MESSAGE_AMOUNT = 3;
-
-  private sessionMap: Map<string, Session> = new Map();
-
   @WebSocketServer()
   server: Server;
+  private readonly MATCHING_ROOM_ID = 'MATCHING';
+  private readonly EVENT_MESSAGE_AMOUNT = 3;
+  private sessionMap: Map<string, Session> = new Map();
 
   constructor(
     private readonly blindDateMessage: BlindDateMessage,
@@ -149,6 +150,77 @@ export class BlindDateGateway
     await this.sessionRepository.terminate(sessionId);
   }
 
+  handleDisconnect(client: Socket) {
+    console.log(`Client disconnected: ${client.id}`);
+  }
+
+  @SubscribeMessage('message')
+  async handleMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: { sessionId: string; message: string; senderId: number },
+  ) {
+    console.log(`Received message from client: ${client.id}`);
+
+    this.server
+      .to(data.sessionId)
+      .emit(
+        EVENT_TYPE.BROADCAST,
+        new Broadcast(
+          data.message,
+          data.senderId,
+          await this.sessionRepository.getName(data.sessionId, data.senderId),
+          new Date(),
+        ),
+      );
+  }
+
+  @SubscribeMessage('choice')
+  async handleVote(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: {
+      sessionId: string;
+      choicerId: number;
+      targetId: number;
+    },
+  ) {
+    console.log(
+      `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
+    );
+
+    // 매칭 성공 시
+    const voteResult = await this.sessionRepository.choice(
+      data.sessionId,
+      data.choicerId,
+      data.targetId,
+    );
+    if (voteResult) {
+      const response = await this.requestToCreateChatRoom(
+        data.choicerId,
+        data.targetId,
+      );
+
+      const createdRoomId: string = (response.data as { roomId: string })
+        .roomId;
+      if (!createdRoomId || typeof createdRoomId !== 'string') {
+        throw new Error('방이 생성되지 않았습니다.');
+      }
+      this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+
+      const targetSocketId = await this.sessionRepository.getSocketIdByMemberId(
+        data.sessionId,
+        data.targetId,
+      );
+      if (!targetSocketId) {
+        return;
+      }
+      this.server
+        .to(targetSocketId)
+        .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+    }
+  }
+
   private async sendEventMessage(sessionId: string) {
     for (const message of this.blindDateMessage.getEventMessage(
       this.EVENT_MESSAGE_AMOUNT,
@@ -239,77 +311,6 @@ export class BlindDateGateway
       sessionId,
       volunteer,
     });
-  }
-
-  handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
-  }
-
-  @SubscribeMessage('message')
-  async handleMessage(
-    @ConnectedSocket() client: Socket,
-    @MessageBody()
-    data: { sessionId: string; message: string; senderId: number },
-  ) {
-    console.log(`Received message from client: ${client.id}`);
-
-    this.server
-      .to(data.sessionId)
-      .emit(
-        EVENT_TYPE.BROADCAST,
-        new Broadcast(
-          data.message,
-          data.senderId,
-          await this.sessionRepository.getName(data.sessionId, data.senderId),
-          new Date(),
-        ),
-      );
-  }
-
-  @SubscribeMessage('choice')
-  async handleVote(
-    @ConnectedSocket() client: Socket,
-    @MessageBody()
-    data: {
-      sessionId: string;
-      choicerId: number;
-      targetId: number;
-    },
-  ) {
-    console.log(
-      `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
-    );
-
-    // 매칭 성공 시
-    const voteResult = await this.sessionRepository.choice(
-      data.sessionId,
-      data.choicerId,
-      data.targetId,
-    );
-    if (voteResult) {
-      const response = await this.requestToCreateChatRoom(
-        data.choicerId,
-        data.targetId,
-      );
-
-      const createdRoomId: string = (response.data as { roomId: string })
-        .roomId;
-      if (!createdRoomId || typeof createdRoomId !== 'string') {
-        throw new Error('방이 생성되지 않았습니다.');
-      }
-      this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-
-      const targetSocketId = await this.sessionRepository.getSocketIdByMemberId(
-        data.sessionId,
-        data.targetId,
-      );
-      if (!targetSocketId) {
-        return;
-      }
-      this.server
-        .to(targetSocketId)
-        .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-    }
   }
 
   private async requestToCreateChatRoom(
