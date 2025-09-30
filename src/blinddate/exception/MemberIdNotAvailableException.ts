@@ -1,14 +1,12 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
+import { BaseException } from '@/exception-filter/base.exception';
 
-export class MemberIdNotAvailableException extends HttpException {
+export class MemberIdNotAvailableException extends BaseException {
   constructor(details?: Record<string, any>) {
-    const response = {
-      statusCode: HttpStatus.BAD_REQUEST,
-      message: '소켓에 회원 ID가 존재하지 않습니다.',
-      error: HttpStatus[HttpStatus.BAD_REQUEST],
-      time: new Date().toISOString(),
+    super(
+      '소켓에 회원 ID가 존재하지 않습니다.',
+      HttpStatus.BAD_REQUEST,
       details,
-    };
-    super(response, HttpStatus.BAD_REQUEST);
+    );
   }
 }
