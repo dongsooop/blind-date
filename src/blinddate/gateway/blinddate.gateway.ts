@@ -116,14 +116,13 @@ export class BlindDateGateway
     await this.sessionRepository.start(sessionId);
     this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
 
+    const date = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+
     // 시작 전 안내 멘트 전송
     this.blindDateMessage.getStartMessage().forEach((message) => {
       this.server
         .to(sessionId)
-        .emit(
-          EVENT_TYPE.SYSTEM,
-          new Broadcast(message, 0, '동냥이', new Date()),
-        );
+        .emit(EVENT_TYPE.SYSTEM, new Broadcast(message, 0, '동냥이', date));
     });
 
     // 시간별로 이벤트 메시지 전송
@@ -154,84 +153,18 @@ export class BlindDateGateway
     console.log(`Client disconnected: ${client.id}`);
   }
 
-  @SubscribeMessage('message')
-  async handleMessage(
-    @ConnectedSocket() client: Socket,
-    @MessageBody()
-    data: { sessionId: string; message: string; senderId: number },
-  ) {
-    console.log(`Received message from client: ${client.id}`);
-
-    this.server
-      .to(data.sessionId)
-      .emit(
-        EVENT_TYPE.BROADCAST,
-        new Broadcast(
-          data.message,
-          data.senderId,
-          await this.sessionRepository.getName(data.sessionId, data.senderId),
-          new Date(),
-        ),
-      );
-  }
-
-  @SubscribeMessage('choice')
-  async handleVote(
-    @ConnectedSocket() client: Socket,
-    @MessageBody()
-    data: {
-      sessionId: string;
-      choicerId: number;
-      targetId: number;
-    },
-  ) {
-    console.log(
-      `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
-    );
-
-    // 매칭 성공 시
-    const voteResult = await this.sessionRepository.choice(
-      data.sessionId,
-      data.choicerId,
-      data.targetId,
-    );
-    if (voteResult) {
-      const response = await this.requestToCreateChatRoom(
-        data.choicerId,
-        data.targetId,
-      );
-
-      const createdRoomId: string = (response.data as { roomId: string })
-        .roomId;
-      if (!createdRoomId || typeof createdRoomId !== 'string') {
-        throw new Error('방이 생성되지 않았습니다.');
-      }
-      this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-
-      const targetSocketId = await this.sessionRepository.getSocketIdByMemberId(
-        data.sessionId,
-        data.targetId,
-      );
-      if (!targetSocketId) {
-        return;
-      }
-      this.server
-        .to(targetSocketId)
-        .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-    }
-  }
-
   private async sendEventMessage(sessionId: string) {
     for (const message of this.blindDateMessage.getEventMessage(
       this.EVENT_MESSAGE_AMOUNT,
     )) {
+      const date = new Date().toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+      });
+
       this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
       this.server
         .to(sessionId)
-        .emit(
-          EVENT_TYPE.SYSTEM,
-          new Broadcast(message, 0, '동냥이', new Date()),
-        );
+        .emit(EVENT_TYPE.SYSTEM, new Broadcast(message, 0, '동냥이', date));
 
       // 메시지 전달 후 채팅 활성화
       await new Promise<void>((resolve) => {
@@ -311,6 +244,77 @@ export class BlindDateGateway
       sessionId,
       volunteer,
     });
+  }
+
+  @SubscribeMessage('message')
+  async handleMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: { sessionId: string; message: string; senderId: number },
+  ) {
+    console.log(
+      `${new Date().toISOString()}: Received message from client: ${client.id}`,
+    );
+
+    const date = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+
+    this.server
+      .to(data.sessionId)
+      .emit(
+        EVENT_TYPE.BROADCAST,
+        new Broadcast(
+          data.message,
+          data.senderId,
+          await this.sessionRepository.getName(data.sessionId, data.senderId),
+          date,
+        ),
+      );
+  }
+
+  @SubscribeMessage('choice')
+  async handleVote(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: {
+      sessionId: string;
+      choicerId: number;
+      targetId: number;
+    },
+  ) {
+    console.log(
+      `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
+    );
+
+    // 매칭 성공 시
+    const voteResult = await this.sessionRepository.choice(
+      data.sessionId,
+      data.choicerId,
+      data.targetId,
+    );
+    if (voteResult) {
+      const response = await this.requestToCreateChatRoom(
+        data.choicerId,
+        data.targetId,
+      );
+
+      const createdRoomId: string = (response.data as { roomId: string })
+        .roomId;
+      if (!createdRoomId) {
+        throw new Error('방이 생성되지 않았습니다.');
+      }
+      this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+
+      const targetSocketId = await this.sessionRepository.getSocketIdByMemberId(
+        data.sessionId,
+        data.targetId,
+      );
+      if (!targetSocketId) {
+        return;
+      }
+      this.server
+        .to(targetSocketId)
+        .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+    }
   }
 
   private async requestToCreateChatRoom(

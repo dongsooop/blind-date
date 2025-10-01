@@ -2,9 +2,9 @@ export class Broadcast {
   public message: string;
   public memberId: number;
   public name: string;
-  public sendAt: Date;
+  public sendAt: string;
 
-  constructor(message: string, memberId: number, name: string, sendAt: Date) {
+  constructor(message: string, memberId: number, name: string, sendAt: string) {
     this.message = message;
     this.memberId = memberId;
     this.name = name;
