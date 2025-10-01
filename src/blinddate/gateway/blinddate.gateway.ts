@@ -127,22 +127,20 @@ export class BlindDateGateway
 
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId);
-    this.server
-      .to(sessionId)
-      .emit('participants', this.sessionRepository.getAllMembers(sessionId));
+
+    const participants = await this.sessionRepository.getAllMembers(sessionId);
+    this.server.to(sessionId).emit('participants', participants);
 
     await new Promise<void>((resolve) => setTimeout(resolve, 12000));
 
-    const notMatched = await this.sessionRepository.getNotMatched(sessionId);
+    const notMatchedUserSocket =
+      await this.sessionRepository.getNotMatched(sessionId);
 
-    for (const id of notMatched) {
-      const socketId = await this.sessionRepository.getSocketIdByMemberId(
-        sessionId,
-        id,
-      );
+    for (const socketId of notMatchedUserSocket) {
       if (!socketId) {
         return;
       }
+
       this.server.to(socketId).emit('failed');
     }
 
@@ -178,7 +176,7 @@ export class BlindDateGateway
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           resolve();
-        }, 60000); // 1분
+        }, 1000); // 1분
         // }, 180000);
       });
     }

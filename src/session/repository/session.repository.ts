@@ -147,12 +147,25 @@ export class SessionRepository {
   }
 
   public async getNotMatched(sessionId: string) {
-    const allMember = await this.getAllMembers(sessionId);
-    const results: number[] = JSON.parse(
-      (await this.redisClient.get(this.getMatchesKeyName(sessionId))) || '[]',
-    ) as number[];
+    const allMembersSocket = (await this.redisClient.hGetAll(
+      this.getSocketKeyName(sessionId),
+    )) as { [x: number]: string };
 
-    return allMember.filter((m) => !results.indexOf(m));
+    const allMember: number[] = Object.keys(allMembersSocket).map(Number);
+
+    const matched = await this.redisClient.get(
+      this.getMatchesKeyName(sessionId),
+    );
+
+    if (!matched) {
+      return Object.values(allMembersSocket);
+    }
+
+    const matchedUserSet = JSON.parse(matched) as Set<number>;
+
+    return allMember
+      .filter((member) => !matchedUserSet.has(member))
+      .map((member) => allMembersSocket[member]);
   }
 
   private getSessionData(sessionId: string) {
