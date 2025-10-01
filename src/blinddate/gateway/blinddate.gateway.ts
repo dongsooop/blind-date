@@ -116,13 +116,14 @@ export class BlindDateGateway
     await this.sessionRepository.start(sessionId);
     this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
 
-    const date = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-
     // 시작 전 안내 멘트 전송
     this.blindDateMessage.getStartMessage().forEach((message) => {
       this.server
         .to(sessionId)
-        .emit(EVENT_TYPE.SYSTEM, new Broadcast(message, 0, '동냥이', date));
+        .emit(
+          EVENT_TYPE.SYSTEM,
+          new Broadcast(message, 0, '동냥이', new Date()),
+        );
     });
 
     // 시간별로 이벤트 메시지 전송
@@ -155,14 +156,13 @@ export class BlindDateGateway
     for (const message of this.blindDateMessage.getEventMessage(
       this.EVENT_MESSAGE_AMOUNT,
     )) {
-      const date = new Date().toLocaleString('ko-KR', {
-        timeZone: 'Asia/Seoul',
-      });
-
       this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
       this.server
         .to(sessionId)
-        .emit(EVENT_TYPE.SYSTEM, new Broadcast(message, 0, '동냥이', date));
+        .emit(
+          EVENT_TYPE.SYSTEM,
+          new Broadcast(message, 0, '동냥이', new Date()),
+        );
 
       // 메시지 전달 후 채팅 활성화
       await new Promise<void>((resolve) => {
@@ -176,7 +176,7 @@ export class BlindDateGateway
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           resolve();
-        }, 1000); // 1분
+        }, 5000); // 5초
         // }, 180000);
       });
     }
@@ -254,8 +254,6 @@ export class BlindDateGateway
       `${new Date().toISOString()}: Received message from client: ${client.id}`,
     );
 
-    const date = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-
     this.server
       .to(data.sessionId)
       .emit(
@@ -264,7 +262,7 @@ export class BlindDateGateway
           data.message,
           data.senderId,
           await this.sessionRepository.getName(data.sessionId, data.senderId),
-          date,
+          new Date(),
         ),
       );
   }
