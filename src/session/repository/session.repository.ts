@@ -172,12 +172,12 @@ export class SessionRepository {
     );
   }
 
-  public async getAllMembers(sessionId: string) {
+  public async getAllMembers(sessionId: string): Promise<string[][]> {
     const allMember = (await this.redisClient.hGetAll(
       this.getSocketKeyName(sessionId),
     )) as { [x: number]: string };
 
-    return Object.keys(allMember).map(Number);
+    return Object.entries(allMember);
   }
 
   public async getNotMatched(sessionId: string) {
