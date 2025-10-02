@@ -285,36 +285,41 @@ export class BlindDateGateway
       `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
     );
 
-    // 매칭 성공 시
     const voteResult = await this.sessionRepository.choice(
       data.sessionId,
       data.choicerId,
       data.targetId,
     );
-    if (voteResult) {
-      const response = await this.requestToCreateChatRoom(
-        data.choicerId,
-        data.targetId,
-      );
 
-      const createdRoomId: string = (response.data as { roomId: string })
-        .roomId;
-      if (!createdRoomId) {
-        throw new Error('방이 생성되지 않았습니다.');
-      }
-      this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-
-      const targetSocketId = await this.sessionRepository.getSocketIdByMemberId(
-        data.sessionId,
-        data.targetId,
-      );
-      if (!targetSocketId) {
-        return;
-      }
-      this.server
-        .to(targetSocketId)
-        .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+    // 매칭 실패 시
+    if (!voteResult) {
+      console.log('failed');
+      return;
     }
+
+    // 매칭 성공 시
+    console.log(`matching success! ${data.choicerId} + ${data.targetId}`);
+    const response = await this.requestToCreateChatRoom(
+      data.choicerId,
+      data.targetId,
+    );
+
+    const createdRoomId: string = (response.data as { roomId: string }).roomId;
+    if (!createdRoomId) {
+      throw new Error('방이 생성되지 않았습니다.');
+    }
+    this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+
+    const targetSocketId = await this.sessionRepository.getSocketIdByMemberId(
+      data.sessionId,
+      data.targetId,
+    );
+    if (!targetSocketId) {
+      return;
+    }
+    this.server
+      .to(targetSocketId)
+      .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
   }
 
   private async requestToCreateChatRoom(

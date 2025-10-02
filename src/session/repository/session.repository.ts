@@ -131,34 +131,36 @@ export class SessionRepository {
 
   public async choice(sessionId: string, choicerId: number, targetId: number) {
     const choiceKeyName = this.getChoiceKeyName(sessionId);
-    const targetsChoicer: number[] = JSON.parse(
-      (await this.redisClient.hGet(choiceKeyName, targetId + '')) || '[]',
-    ) as number[];
 
-    targetsChoicer.push(choicerId);
-
-    await this.redisClient.hSet(
-      choiceKeyName,
-      targetId,
-      JSON.stringify(targetsChoicer),
-    );
+    // 선택자 저장
+    await this.redisClient
+      .multi()
+      .hSet(choiceKeyName, choicerId, targetId)
+      .hExpire(choiceKeyName, choicerId.toString(), 60 * 60 * 24)
+      .exec();
 
     // 상대가 날 선택하지 않았을 때
-    const voter: number[] = JSON.parse(
-      (await this.redisClient.hGet(choiceKeyName, choicerId + '')) || '[]',
-    ) as number[];
+    const targetsPick = await this.redisClient.hGet(
+      choiceKeyName,
+      targetId.toString(),
+    );
 
+    if (!targetsPick || targetsPick !== choicerId.toString()) {
+      return;
+    }
+
+    // 매칭 성사되었을 때
     const matchesKeyName = this.getMatchesKeyName(sessionId);
-    const matched: number[] = JSON.parse(
+    const matched: string[] = JSON.parse(
       (await this.redisClient.get(matchesKeyName)) || '[]',
-    ) as number[];
+    ) as string[];
 
-    if (matched.indexOf(targetId) || !voter || !voter.indexOf(targetId)) {
+    if (matched.includes(targetId.toString())) {
       return false;
     }
 
-    matched.push(choicerId);
-    matched.push(targetId);
+    matched.push(choicerId.toString());
+    matched.push(targetId.toString());
 
     await this.redisClient.set(matchesKeyName, JSON.stringify(matched));
 
