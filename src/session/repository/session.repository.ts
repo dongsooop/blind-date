@@ -42,6 +42,40 @@ export class SessionRepository {
     return sessionId;
   }
 
+  public async initPointer() {
+    await this.redisClient.del(this.getPointerKeyName());
+  }
+
+  public async leave(sessionIds: Set<string>, socketId: string) {
+    for (const sessionId of sessionIds) {
+      // 대기중인 방이 아닌 경우 별도 나감 상태를 처리하지 않음
+      const state = await this.redisClient.hGet(
+        this.getSessionKeyName(sessionId),
+        'state',
+      );
+
+      if (state !== SESSION_STATE.WAITING) {
+        continue;
+      }
+
+      const socketKeyName = this.getSocketKeyName(sessionId);
+      const socketHash = await this.redisClient.hGetAll(socketKeyName);
+
+      const reversed = Object.fromEntries(
+        Object.entries(socketHash).map(([key, value]) => [value, key]),
+      );
+
+      const memberId = reversed[socketId];
+      await this.redisClient.hDel(socketKeyName, memberId); // 소켓 이름 제거
+      // 인원수 1 감소
+      await this.redisClient.hIncrBy(
+        this.getSessionKeyName(sessionId),
+        'volunteer',
+        -1,
+      );
+    }
+  }
+
   public async addMember(
     sessionId: string,
     memberId: number,

@@ -146,10 +146,14 @@ export class BlindDateGateway
     }
 
     await this.sessionRepository.terminate(sessionId);
+    await this.sessionRepository.initPointer();
   }
 
-  handleDisconnect(client: Socket) {
+  async handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
+    const sessionIds: Set<string> = client.rooms;
+
+    await this.sessionRepository.leave(sessionIds, client.id);
   }
 
   private async sendEventMessage(sessionId: string) {
