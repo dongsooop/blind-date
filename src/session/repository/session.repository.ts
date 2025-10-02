@@ -197,10 +197,10 @@ export class SessionRepository {
       return Object.values(allMembersSocket);
     }
 
-    const matchedUserSet = JSON.parse(matched) as Set<number>;
+    const matchedUsers = JSON.parse(matched) as number[];
 
     return allMember
-      .filter((member) => !matchedUserSet.has(member))
+      .filter((member) => !matchedUsers.includes(member))
       .map((member) => allMembersSocket[member]);
   }
 
