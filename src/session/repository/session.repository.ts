@@ -174,7 +174,7 @@ export class SessionRepository {
 
   public async getAllMembers(sessionId: string): Promise<string[][]> {
     const allMember = (await this.redisClient.hGetAll(
-      this.getSocketKeyName(sessionId),
+      this.getNameKeys(sessionId),
     )) as { [x: number]: string };
 
     return Object.entries(allMember);
