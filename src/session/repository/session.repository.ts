@@ -13,6 +13,14 @@ import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 
 @Injectable()
 export class SessionRepository {
+  private readonly BLINDDATE_KEY_NAME = 'blinddate';
+  private readonly CHOICE_EXPIRED_TIME = 60 * 60 * 24;
+  private readonly BLINDDATE_EXPIRED_TIME = 60 * 60 * 24;
+  private readonly VOLUNTEER_KEY_NAME = 'volunteer';
+  private readonly NAME_COUNTER_KEY_NAME = 'nameCounter';
+  private readonly MAX_MEMBER_COUNT_KEY_NAME = 'maxMemberCount';
+  private readonly STATE_KEY_NAME = 'state';
+
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
   ) {}
@@ -38,9 +46,9 @@ export class SessionRepository {
 
     await this.redisClient
       .multi()
-      .hSet(sessionKeyName, 'volunteer', 0)
-      .hSet(sessionKeyName, 'nameCounter', 1)
-      .hSet(sessionKeyName, 'state', SESSION_STATE.WAITING)
+      .hSet(sessionKeyName, this.VOLUNTEER_KEY_NAME, 0)
+      .hSet(sessionKeyName, this.NAME_COUNTER_KEY_NAME, 1)
+      .hSet(sessionKeyName, this.STATE_KEY_NAME, SESSION_STATE.WAITING)
       .exec();
 
     return sessionId;
@@ -55,7 +63,7 @@ export class SessionRepository {
       // 대기중인 방이 아닌 경우 별도 나감 상태를 처리하지 않음
       const state = await this.redisClient.hGet(
         SessionKeyFactory.getSessionKeyName(sessionId),
-        'state',
+        this.STATE_KEY_NAME,
       );
 
       if (state !== SESSION_STATE.WAITING) {
@@ -74,7 +82,7 @@ export class SessionRepository {
       // 인원수 1 감소
       await this.redisClient.hIncrBy(
         SessionKeyFactory.getSessionKeyName(sessionId),
-        'volunteer',
+        this.VOLUNTEER_KEY_NAME,
         -1,
       );
     }
@@ -99,18 +107,18 @@ export class SessionRepository {
     const sessionKeyName = SessionKeyFactory.getSessionKeyName(sessionId);
 
     const nameCount = Number(
-      await this.redisClient.hGet(sessionKeyName, 'nameCounter'),
+      await this.redisClient.hGet(sessionKeyName, this.NAME_COUNTER_KEY_NAME),
     );
 
     await this.redisClient
       .multi()
-      .hIncrBy(sessionKeyName, 'volunteer', 1) // 사용자 증가
+      .hIncrBy(sessionKeyName, this.VOLUNTEER_KEY_NAME, 1) // 사용자 증가
       .hSet(
         SessionKeyFactory.getNameKeys(sessionId),
         memberId,
         `동냥이${nameCount}`,
       ) // 회원 id에 사용자 이름 할당
-      .hIncrBy(sessionKeyName, 'nameCounter', 1) // 사용자 식별자 증가
+      .hIncrBy(sessionKeyName, this.NAME_COUNTER_KEY_NAME, 1) // 사용자 식별자 증가
       .hSet(socketKeyName, memberId, socketId) // 소켓 목록에 사용자 id 바인드
       .sAdd(clientKeyName, memberId.toString()) // 사용자 목록에 추가
       .exec(); // 회원 id에 소켓 id 할당
@@ -132,7 +140,7 @@ export class SessionRepository {
   public async start(sessionId: string) {
     await this.redisClient.hSet(
       SessionKeyFactory.getSessionKeyName(sessionId),
-      'state',
+      this.STATE_KEY_NAME,
       SESSION_STATE.PROCESSING,
     );
   }
@@ -144,7 +152,7 @@ export class SessionRepository {
     await this.redisClient
       .multi()
       .hSet(choiceKeyName, choicerId, targetId)
-      .hExpire(choiceKeyName, choicerId.toString(), 60 * 60 * 24)
+      .hExpire(choiceKeyName, choicerId.toString(), this.CHOICE_EXPIRED_TIME)
       .exec();
 
     // 상대가 날 선택하지 않았을 때
@@ -218,19 +226,26 @@ export class SessionRepository {
   }
 
   public async setMaxSessionMemberCount(count: number) {
-    await this.redisClient.hSet('blinddate', 'maxMemberCount', count);
+    await this.redisClient.hSet(
+      this.BLINDDATE_KEY_NAME,
+      this.MAX_MEMBER_COUNT_KEY_NAME,
+      count,
+    );
   }
 
   public getMaxSessionMemberCount() {
-    return this.redisClient.hGet('blinddate', 'maxMemberCount');
+    return this.redisClient.hGet(
+      this.BLINDDATE_KEY_NAME,
+      this.MAX_MEMBER_COUNT_KEY_NAME,
+    );
   }
 
   public async getSession(sessionId: string) {
     const rawData = await this.getSessionData(sessionId);
     const sessionData = {
-      volunteer: Number(rawData['volunteer']),
-      state: rawData['state'] as SESSION_STATE_TYPE,
-      nameCounter: Number(rawData['nameCounter']),
+      volunteer: Number(rawData[this.VOLUNTEER_KEY_NAME]),
+      state: rawData[this.STATE_KEY_NAME] as SESSION_STATE_TYPE,
+      nameCounter: Number(rawData[this.NAME_COUNTER_KEY_NAME]),
     };
     if (!sessionData) {
       throw new SessionIdNotFoundException();
@@ -242,22 +257,34 @@ export class SessionRepository {
   public async terminate(sessionId: string) {
     const sessionKeyName = SessionKeyFactory.getSessionKeyName(sessionId);
 
-    await this.redisClient.hSet(sessionKeyName, 'state', SESSION_STATE.ENDED);
+    await this.redisClient.hSet(
+      sessionKeyName,
+      this.STATE_KEY_NAME,
+      SESSION_STATE.ENDED,
+    );
   }
 
   public async startBlindDate() {
     await this.redisClient
       .multi()
-      .hSet('blinddate', 'status', BLIND_DATE_STATUS.OPEN)
-      .expire('blinddate', 60 * 60 * 24)
+      .hSet(
+        this.BLINDDATE_KEY_NAME,
+        this.STATE_KEY_NAME,
+        BLIND_DATE_STATUS.OPEN,
+      )
+      .expire(this.BLINDDATE_KEY_NAME, this.BLINDDATE_EXPIRED_TIME)
       .exec();
   }
 
   public async closeBlindDate() {
-    await this.redisClient.hSet('blinddate', 'status', BLIND_DATE_STATUS.CLOSE);
+    await this.redisClient.hSet(
+      this.BLINDDATE_KEY_NAME,
+      this.STATE_KEY_NAME,
+      BLIND_DATE_STATUS.CLOSE,
+    );
   }
 
   public getBlindDateStatus() {
-    return this.redisClient.hGet('blinddate', 'status');
+    return this.redisClient.hGet(this.BLINDDATE_KEY_NAME, this.STATE_KEY_NAME);
   }
 }
