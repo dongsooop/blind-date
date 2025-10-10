@@ -9,6 +9,7 @@ import {
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import Session from '@/session/entity/session.entity';
 import { BLIND_DATE_STATUS } from '@/blinddate/constant/blinddate.status';
+import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 
 @Injectable()
 export class SessionRepository {
@@ -17,20 +18,23 @@ export class SessionRepository {
   ) {}
 
   public getPointer() {
-    return this.redisClient.get(this.getPointerKeyName());
+    return this.redisClient.get(SessionKeyFactory.getPointerKeyName());
   }
 
   public async setPointerExpire(expiredTime: number) {
-    await this.redisClient.expireAt(this.getPointerKeyName(), expiredTime);
+    await this.redisClient.expireAt(
+      SessionKeyFactory.getPointerKeyName(),
+      expiredTime,
+    );
   }
 
   public async setPointer(pointer: string) {
-    await this.redisClient.set(this.getPointerKeyName(), pointer);
+    await this.redisClient.set(SessionKeyFactory.getPointerKeyName(), pointer);
   }
 
   public async create(): Promise<string> {
     const sessionId = randomUUID();
-    const sessionKeyName = this.getSessionKeyName(sessionId);
+    const sessionKeyName = SessionKeyFactory.getSessionKeyName(sessionId);
 
     await this.redisClient
       .multi()
@@ -43,14 +47,14 @@ export class SessionRepository {
   }
 
   public async initPointer() {
-    await this.redisClient.del(this.getPointerKeyName());
+    await this.redisClient.del(SessionKeyFactory.getPointerKeyName());
   }
 
   public async leave(sessionIds: Set<string>, socketId: string) {
     for (const sessionId of sessionIds) {
       // 대기중인 방이 아닌 경우 별도 나감 상태를 처리하지 않음
       const state = await this.redisClient.hGet(
-        this.getSessionKeyName(sessionId),
+        SessionKeyFactory.getSessionKeyName(sessionId),
         'state',
       );
 
@@ -58,7 +62,7 @@ export class SessionRepository {
         continue;
       }
 
-      const socketKeyName = this.getSocketKeyName(sessionId);
+      const socketKeyName = SessionKeyFactory.getSocketKeyName(sessionId);
       const socketHash = await this.redisClient.hGetAll(socketKeyName);
 
       const reversed = Object.fromEntries(
@@ -69,7 +73,7 @@ export class SessionRepository {
       await this.redisClient.hDel(socketKeyName, memberId); // 소켓 이름 제거
       // 인원수 1 감소
       await this.redisClient.hIncrBy(
-        this.getSessionKeyName(sessionId),
+        SessionKeyFactory.getSessionKeyName(sessionId),
         'volunteer',
         -1,
       );
@@ -81,10 +85,10 @@ export class SessionRepository {
     memberId: number,
     socketId: string,
   ) {
-    const clientKeyName = this.getClientsKeyName(sessionId);
+    const clientKeyName = SessionKeyFactory.getClientsKeyName(sessionId);
     const clients = new Set(await this.redisClient.sMembers(clientKeyName));
 
-    const socketKeyName = this.getSocketKeyName(sessionId);
+    const socketKeyName = SessionKeyFactory.getSocketKeyName(sessionId);
 
     // 이미 방에 참여한 사람일 경우 소켓 id 업데이트
     if (clients.has(memberId.toString())) {
@@ -92,7 +96,7 @@ export class SessionRepository {
       return;
     }
 
-    const sessionKeyName = this.getSessionKeyName(sessionId);
+    const sessionKeyName = SessionKeyFactory.getSessionKeyName(sessionId);
 
     const nameCount = Number(
       await this.redisClient.hGet(sessionKeyName, 'nameCounter'),
@@ -101,7 +105,11 @@ export class SessionRepository {
     await this.redisClient
       .multi()
       .hIncrBy(sessionKeyName, 'volunteer', 1) // 사용자 증가
-      .hSet(this.getNameKeys(sessionId), memberId, `동냥이${nameCount}`) // 회원 id에 사용자 이름 할당
+      .hSet(
+        SessionKeyFactory.getNameKeys(sessionId),
+        memberId,
+        `동냥이${nameCount}`,
+      ) // 회원 id에 사용자 이름 할당
       .hIncrBy(sessionKeyName, 'nameCounter', 1) // 사용자 식별자 증가
       .hSet(socketKeyName, memberId, socketId) // 소켓 목록에 사용자 id 바인드
       .sAdd(clientKeyName, memberId.toString()) // 사용자 목록에 추가
@@ -110,7 +118,7 @@ export class SessionRepository {
 
   public async getName(sessionId: string, memberId: number) {
     const name = await this.redisClient.hGet(
-      this.getNameKeys(sessionId),
+      SessionKeyFactory.getNameKeys(sessionId),
       memberId.toString(),
     );
 
@@ -123,14 +131,14 @@ export class SessionRepository {
 
   public async start(sessionId: string) {
     await this.redisClient.hSet(
-      this.getSessionKeyName(sessionId),
+      SessionKeyFactory.getSessionKeyName(sessionId),
       'state',
       SESSION_STATE.PROCESSING,
     );
   }
 
   public async choice(sessionId: string, choicerId: number, targetId: number) {
-    const choiceKeyName = this.getChoiceKeyName(sessionId);
+    const choiceKeyName = SessionKeyFactory.getChoiceKeyName(sessionId);
 
     // 선택자 저장
     await this.redisClient
@@ -150,7 +158,7 @@ export class SessionRepository {
     }
 
     // 매칭 성사되었을 때
-    const matchesKeyName = this.getMatchesKeyName(sessionId);
+    const matchesKeyName = SessionKeyFactory.getMatchesKeyName(sessionId);
     const matched: string[] = JSON.parse(
       (await this.redisClient.get(matchesKeyName)) || '[]',
     ) as string[];
@@ -169,14 +177,14 @@ export class SessionRepository {
 
   public getSocketIdByMemberId(sessionId: string, memberId: number) {
     return this.redisClient.hGet(
-      this.getSocketKeyName(sessionId),
+      SessionKeyFactory.getSocketKeyName(sessionId),
       memberId + '',
     );
   }
 
   public async getAllMembers(sessionId: string): Promise<string[][]> {
     const allMember = (await this.redisClient.hGetAll(
-      this.getNameKeys(sessionId),
+      SessionKeyFactory.getNameKeys(sessionId),
     )) as { [x: number]: string };
 
     return Object.entries(allMember);
@@ -184,13 +192,13 @@ export class SessionRepository {
 
   public async getNotMatched(sessionId: string) {
     const allMembersSocket = (await this.redisClient.hGetAll(
-      this.getSocketKeyName(sessionId),
+      SessionKeyFactory.getSocketKeyName(sessionId),
     )) as { [x: number]: string };
 
     const allMember: number[] = Object.keys(allMembersSocket).map(Number);
 
     const matched = await this.redisClient.get(
-      this.getMatchesKeyName(sessionId),
+      SessionKeyFactory.getMatchesKeyName(sessionId),
     );
 
     if (!matched) {
@@ -205,7 +213,7 @@ export class SessionRepository {
   }
 
   private getSessionData(sessionId: string) {
-    const redisSessionName = this.getSessionKeyName(sessionId);
+    const redisSessionName = SessionKeyFactory.getSessionKeyName(sessionId);
     return this.redisClient.hGetAll(redisSessionName);
   }
 
@@ -232,7 +240,7 @@ export class SessionRepository {
   }
 
   public async terminate(sessionId: string) {
-    const sessionKeyName = this.getSessionKeyName(sessionId);
+    const sessionKeyName = SessionKeyFactory.getSessionKeyName(sessionId);
 
     await this.redisClient.hSet(sessionKeyName, 'state', SESSION_STATE.ENDED);
   }
@@ -251,33 +259,5 @@ export class SessionRepository {
 
   public getBlindDateStatus() {
     return this.redisClient.hGet('blinddate', 'status');
-  }
-
-  private getNameKeys(sessionId: string) {
-    return `blinddate-name-map-${sessionId}`;
-  }
-
-  private getClientsKeyName(sessionId: string) {
-    return `blinddate-clients-${sessionId}`;
-  }
-
-  private getSessionKeyName(sessionId: string) {
-    return `blinddate-${sessionId}`;
-  }
-
-  private getSocketKeyName(sessionId: string) {
-    return `blinddate-socket-${sessionId}`;
-  }
-
-  private getChoiceKeyName(sessionId: string) {
-    return `blinddate-choice-${sessionId}`;
-  }
-
-  private getMatchesKeyName(sessionId: string) {
-    return `blinddate-matches-${sessionId}`;
-  }
-
-  private getPointerKeyName() {
-    return 'blinddate-pointer';
   }
 }
