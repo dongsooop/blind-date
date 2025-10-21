@@ -60,6 +60,8 @@ export class BlindDateGateway
     const isAvailable = await this.blindDateService.isAvailable();
     if (!isAvailable) {
       console.log(`Blinddate service not available: ${client.id}`);
+      client.disconnect();
+      return;
     }
 
     // 적절한 repository ID 할당
