@@ -178,6 +178,8 @@ export class SessionRepository {
     matched.push(choicerId.toString());
     matched.push(targetId.toString());
 
+    console.log(matched);
+
     await this.redisClient.set(matchesKeyName, JSON.stringify(matched));
 
     return true;
@@ -213,7 +215,9 @@ export class SessionRepository {
       return Object.values(allMembersSocket);
     }
 
-    const matchedUsers = JSON.parse(matched) as number[];
+    const matchedUsers = (JSON.parse(matched) as string[]).map((v: string) =>
+      Number(v),
+    );
 
     return allMember
       .filter((member) => !matchedUsers.includes(member))
