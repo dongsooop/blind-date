@@ -127,18 +127,13 @@ export class BlindDateGateway
     const participants = await this.sessionService.getAllMembers(sessionId);
     this.server.to(sessionId).emit('participants', participants);
 
+    // 10초 선택시간 + 2초간 늦은 요청 처리를 위해 대기
     await new Promise<void>((resolve) => setTimeout(resolve, 12000));
 
     const notMatchedUserSocket =
       await this.sessionService.getNotMatched(sessionId);
 
-    for (const socketId of notMatchedUserSocket) {
-      if (!socketId) {
-        return;
-      }
-
-      this.server.to(socketId).emit('failed');
-    }
+    this.server.to(notMatchedUserSocket).emit('failed');
 
     await this.sessionService.terminate(sessionId);
   }
