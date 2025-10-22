@@ -9,18 +9,15 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 import { EVENT_TYPE } from '@/blinddate/constant/blinddate.event.type';
 import { Broadcast } from '@/blinddate/constant/Broadcast';
 import Session from '@/session/entity/session.entity';
 import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
-import { SessionRepository } from '@/session/repository/session.repository';
 import { CustomWsExceptionFilter } from '@/exception-filter/websocket.exception.filter';
 import { UseFilters } from '@nestjs/common';
+import { SessionService } from '@/session/service/session.service';
 
 @UseFilters(CustomWsExceptionFilter)
 @WebSocketGateway({
@@ -41,9 +38,8 @@ export class BlindDateGateway
 
   constructor(
     private readonly blindDateMessage: BlindDateMessage,
-    private readonly httpService: HttpService,
     private readonly blindDateService: BlindDateService,
-    private readonly sessionRepository: SessionRepository,
+    private readonly sessionService: SessionService,
   ) {}
 
   afterInit() {
@@ -65,12 +61,12 @@ export class BlindDateGateway
     }
 
     // 적절한 repository ID 할당
-    const sessionId: string = await this.assignSession(
+    const sessionId: string = await this.blindDateService.assignSession(
       client.handshake.query.sessionId,
     );
 
     // 매칭된 방
-    const session: Session = await this.sessionRepository.getSession(sessionId);
+    const session: Session = await this.sessionService.getSession(sessionId);
 
     // 종료된 방이면 종료
     if (session.isTerminated()) {
@@ -87,7 +83,7 @@ export class BlindDateGateway
     }
 
     // 세션에 회원 추가
-    await this.sessionRepository.addMember(sessionId, memberId, client.id);
+    await this.sessionService.addMember(sessionId, memberId, client.id);
 
     // 대기중인 방이 아닌 경우 재입장으로 간주하고 종료
     if (!session.isWaiting()) {
@@ -95,10 +91,7 @@ export class BlindDateGateway
     }
 
     // 회원 닉네임
-    const name = await this.sessionRepository.getName(
-      sessionId,
-      Number(memberId),
-    );
+    const name = await this.sessionService.getName(sessionId, Number(memberId));
     client.emit(EVENT_TYPE.JOIN, { name, sessionId });
 
     // 참여자 수
@@ -115,7 +108,7 @@ export class BlindDateGateway
 
     // 마지막 참여자일 경우
     this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
-    await this.sessionRepository.start(sessionId);
+    await this.sessionService.start(sessionId);
     this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
 
     // 시작 전 안내 멘트 전송
@@ -131,13 +124,13 @@ export class BlindDateGateway
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId);
 
-    const participants = await this.sessionRepository.getAllMembers(sessionId);
+    const participants = await this.sessionService.getAllMembers(sessionId);
     this.server.to(sessionId).emit('participants', participants);
 
     await new Promise<void>((resolve) => setTimeout(resolve, 12000));
 
     const notMatchedUserSocket =
-      await this.sessionRepository.getNotMatched(sessionId);
+      await this.sessionService.getNotMatched(sessionId);
 
     for (const socketId of notMatchedUserSocket) {
       if (!socketId) {
@@ -147,15 +140,14 @@ export class BlindDateGateway
       this.server.to(socketId).emit('failed');
     }
 
-    await this.sessionRepository.terminate(sessionId);
-    await this.sessionRepository.initPointer();
+    await this.sessionService.terminate(sessionId);
   }
 
   async handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
     const sessionIds: Set<string> = client.rooms;
 
-    await this.sessionRepository.leave(sessionIds, client.id);
+    await this.sessionService.leave(sessionIds, client.id);
   }
 
   private async sendEventMessage(sessionId: string) {
@@ -182,47 +174,9 @@ export class BlindDateGateway
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           resolve();
-        }, 5000); // 5초
-        // }, 180000);
+        }, 180000); // 3분
       });
     }
-  }
-
-  /**
-   * 세션 배정
-   * @param sessionId
-   * @private
-   */
-  private async assignSession(sessionId: string | string[] | undefined) {
-    if (!sessionId || typeof sessionId !== 'string') {
-      throw new SessionIdNotFoundException();
-    }
-
-    // 재연결일 때
-    if (sessionId !== this.MATCHING_ROOM_ID) {
-      return sessionId;
-    }
-
-    const pointer = await this.sessionRepository.getPointer();
-
-    // pointer가 가리키는 세션이 없을 때
-    if (pointer === null) {
-      const newPointer = await this.sessionRepository.create();
-      await this.sessionRepository.setPointer(newPointer);
-      return newPointer;
-    }
-
-    // pointer가 가리키는 세션의 인원수가 찼을 때
-    const volunteer =
-      (await this.sessionRepository.getSession(pointer)).getVolunteer() || 0;
-    const memberCount = await this.blindDateService.getMaxSessionMemberCount();
-    if (volunteer >= memberCount) {
-      const newPointer = await this.sessionRepository.create();
-      await this.sessionRepository.setPointer(newPointer);
-      return newPointer;
-    }
-
-    return pointer;
   }
 
   private getVolunteer(sessionId: string): number {
@@ -230,11 +184,7 @@ export class BlindDateGateway
       .get(sessionId)
       ?.getVolunteer();
 
-    if (volunteer === undefined) {
-      return 0;
-    }
-
-    return volunteer;
+    return volunteer ?? 0;
   }
 
   private emitStartEvent(sessionId: string) {
@@ -260,16 +210,16 @@ export class BlindDateGateway
       `${new Date().toISOString()}: Received message from client: ${client.id}`,
     );
 
+    const name = await this.sessionService.getName(
+      data.sessionId,
+      data.senderId,
+    );
+
     this.server
       .to(data.sessionId)
       .emit(
         EVENT_TYPE.BROADCAST,
-        new Broadcast(
-          data.message,
-          data.senderId,
-          await this.sessionRepository.getName(data.sessionId, data.senderId),
-          new Date(),
-        ),
+        new Broadcast(data.message, data.senderId, name, new Date()),
       );
   }
 
@@ -287,60 +237,23 @@ export class BlindDateGateway
       `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
     );
 
-    const voteResult = await this.sessionRepository.choice(
-      data.sessionId,
-      data.choicerId,
-      data.targetId,
-    );
-
-    // 매칭 실패 시
-    if (!voteResult) {
-      console.log('failed');
-      return;
-    }
-
-    // 매칭 성공 시
-    console.log(`matching success! ${data.choicerId} + ${data.targetId}`);
-    const response = await this.requestToCreateChatRoom(
-      data.choicerId,
-      data.targetId,
-    );
-
-    const createdRoomId: string = (response.data as { roomId: string }).roomId;
-    if (!createdRoomId) {
-      throw new Error('방이 생성되지 않았습니다.');
-    }
-    this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-
-    const targetSocketId = await this.sessionRepository.getSocketIdByMemberId(
+    const targetSocketId = await this.sessionService.getSocketIdByMemberId(
       data.sessionId,
       data.targetId,
     );
+
     if (!targetSocketId) {
       return;
     }
+
+    const createdRoomId = await this.blindDateService.choice(data);
+    if (createdRoomId === null || createdRoomId === undefined) {
+      return;
+    }
+
+    this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
     this.server
       .to(targetSocketId)
       .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-  }
-
-  private async requestToCreateChatRoom(
-    sourceUserId: number,
-    targetUserId: number,
-  ) {
-    const requestHeader = {
-      headers: { Authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
-    };
-    const requestBody = {
-      sourceUserId,
-      targetUserId,
-      title: `[과팅] ${new Date().toISOString().slice(0, 10)}`,
-    };
-    const url = `https://${process.env.SERVER_DOMAIN}${process.env.CREATE_CHATROOM_API}`;
-
-    // 채팅방 생성
-    return await firstValueFrom(
-      this.httpService.post(url, requestBody, requestHeader),
-    );
   }
 }

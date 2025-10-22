@@ -125,16 +125,10 @@ export class SessionRepository {
   }
 
   public async getName(sessionId: string, memberId: number) {
-    const name = await this.redisClient.hGet(
+    return await this.redisClient.hGet(
       SessionKeyFactory.getNameKeys(sessionId),
       memberId.toString(),
     );
-
-    if (!name) {
-      throw new Error(`Unable to get member '${memberId}'`);
-    }
-
-    return name;
   }
 
   public async start(sessionId: string) {
