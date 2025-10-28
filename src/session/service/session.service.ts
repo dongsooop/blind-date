@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { SessionRepository } from '@/session/repository/session.repository';
-import { SessionKeyFactory } from '@/session/repository/session-key.factory';
-import { SESSION_STATE } from '@/session/const/session.constant';
 
 @Injectable()
 export class SessionService {

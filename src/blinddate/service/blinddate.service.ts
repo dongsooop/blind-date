@@ -6,7 +6,6 @@ import { Injectable } from '@nestjs/common';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
-import { EVENT_TYPE } from '@/blinddate/constant/blinddate.event.type';
 import { SessionService } from '@/session/service/session.service';
 
 @Injectable()
