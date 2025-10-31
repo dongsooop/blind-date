@@ -8,6 +8,6 @@ export class Broadcast {
     this.message = message;
     this.memberId = memberId;
     this.name = name;
-    this.sendAt = sendAt;
+    this.sendAt = new Date(sendAt.getTime() + 9 * 60 * 60 * 1000);
   }
 }
