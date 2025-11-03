@@ -94,7 +94,7 @@ export class BlindDateService {
     const requestBody = {
       sourceUserId,
       targetUserId,
-      boardTitle: `[과팅] ${new Date().toISOString().slice(0, 10)}`,
+      boardTitle: `${new Date().toISOString().slice(0, 10)}`,
       boardType: 'BLINDDATE',
       boardId: new Date().getTime() + 9 * 60 * 60 * 1000,
     };
