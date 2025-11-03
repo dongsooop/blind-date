@@ -96,7 +96,7 @@ export class BlindDateService {
       targetUserId,
       boardTitle: `[과팅] ${new Date().toISOString().slice(0, 10)}`,
       boardType: 'BLINDDATE',
-      boardId: new Date(new Date().getTime() + 9 * 60 * 60 * 1000),
+      boardId: new Date().getTime() + 9 * 60 * 60 * 1000,
     };
     const url = `https://${process.env.SERVER_DOMAIN}${process.env.CREATE_CHATROOM_API}`;
 

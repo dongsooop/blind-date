@@ -169,7 +169,8 @@ export class BlindDateGateway
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           resolve();
-        }, 180000); // 3분
+        }, 1); // 1초
+        // }, 180000); // 3분
       });
     }
   }
