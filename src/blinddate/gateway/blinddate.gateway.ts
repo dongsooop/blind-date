@@ -133,7 +133,9 @@ export class BlindDateGateway
     const notMatchedUserSocket =
       await this.sessionService.getNotMatched(sessionId);
 
-    this.server.to(notMatchedUserSocket).emit('failed');
+    if (notMatchedUserSocket.length > 0) {
+      this.server.to(notMatchedUserSocket).emit('failed');
+    }
 
     await this.sessionService.terminate(sessionId);
   }
