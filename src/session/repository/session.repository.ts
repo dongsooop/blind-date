@@ -94,12 +94,18 @@ export class SessionRepository {
     socketId: string,
   ) {
     const clientKeyName = SessionKeyFactory.getClientsKeyName(sessionId);
-    const clients = new Set(await this.redisClient.sMembers(clientKeyName));
-
     const socketKeyName = SessionKeyFactory.getSocketKeyName(sessionId);
 
-    // 이미 방에 참여한 사람일 경우 소켓 id 업데이트
-    if (clients.has(memberId.toString())) {
+    await this.redisClient.watch([clientKeyName, socketKeyName]);
+
+    // 이미 존재하는 회원인지 검사
+    const isAlreadyMember = await this.redisClient.sIsMember(
+      clientKeyName,
+      memberId.toString(),
+    );
+
+    // 이미 세션에 존재하는 회원일 경우 소켓 id만 변경
+    if (isAlreadyMember) {
       await this.redisClient.hSet(socketKeyName, memberId, socketId);
       return;
     }
@@ -122,6 +128,8 @@ export class SessionRepository {
       .hSet(socketKeyName, memberId, socketId) // 소켓 목록에 사용자 id 바인드
       .sAdd(clientKeyName, memberId.toString()) // 사용자 목록에 추가
       .exec(); // 회원 id에 소켓 id 할당
+
+    await this.redisClient.unwatch();
   }
 
   public async getName(sessionId: string, memberId: number) {
