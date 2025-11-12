@@ -112,14 +112,17 @@ export class BlindDateGateway
     this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
 
     // 시작 전 안내 멘트 전송
-    this.blindDateMessage.getStartMessage().forEach((message) => {
+    const messages = this.blindDateMessage.getStartMessage();
+    for (const message of messages) {
       this.server
         .to(sessionId)
         .emit(
           EVENT_TYPE.SYSTEM,
           new Broadcast(message, 0, '동냥이', new Date()),
         );
-    });
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+    }
 
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId);
@@ -171,8 +174,7 @@ export class BlindDateGateway
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           resolve();
-        }, 20000); // 20초
-        // }, 180000); // 3분
+        }, 180000); // 3분
       });
     }
   }
