@@ -2,28 +2,29 @@ import {
   SESSION_STATE,
   SESSION_STATE_TYPE,
 } from '@/session/const/session.constant';
+import { Participant } from '@/session/participant.entity';
 
 export default class Session {
-  private readonly volunteer: number;
+  private readonly participants: Participant[];
   private readonly state: SESSION_STATE_TYPE;
   private readonly nameCounter: number;
 
   constructor({
-    volunteer,
+    participants,
     state,
     nameCounter,
   }: {
-    volunteer: number;
+    participants: Participant[];
     state: SESSION_STATE_TYPE;
     nameCounter: number;
   }) {
-    this.volunteer = volunteer || 0;
+    this.participants = participants || [];
     this.state = state || SESSION_STATE.WAITING;
     this.nameCounter = nameCounter || 1;
   }
 
-  public getVolunteer() {
-    return this.volunteer;
+  public getParticipants() {
+    return this.participants;
   }
 
   public isWaiting() {

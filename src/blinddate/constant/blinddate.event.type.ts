@@ -10,4 +10,5 @@ export const EVENT_TYPE = {
   MATCHING: 'matching',
   START: 'start',
   JOIN: 'join',
+  ENDED: 'ended',
 } as const;

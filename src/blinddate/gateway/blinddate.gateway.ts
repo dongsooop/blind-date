@@ -30,13 +30,9 @@ import { SessionService } from '@/session/service/session.service';
 export class BlindDateGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
-  private readonly sessionMap: Map<string, Session> = new Map();
-
-  private readonly MATCHING_ROOM_ID = 'MATCHING';
-  private readonly EVENT_MESSAGE_AMOUNT = 3;
-
   @WebSocketServer()
   server: Server;
+  private readonly EVENT_MESSAGE_AMOUNT = 3;
 
   constructor(
     private readonly blindDateMessage: BlindDateMessage,
@@ -57,32 +53,33 @@ export class BlindDateGateway
 
     const isAvailable = await this.blindDateService.isAvailable();
     if (!isAvailable) {
-      console.log(`Blinddate service not available: ${client.id}`);
+      console.log(`Blinddate service not available. Request By: ${client.id}`);
       client.disconnect();
       return;
     }
-
-    // 적절한 repository ID 할당
-    const sessionId: string = await this.blindDateService.assignSession(
-      client.handshake.query.sessionId,
-    );
-
-    // 매칭된 방
-    const session: Session = await this.sessionService.getSession(sessionId);
-
-    // 종료된 방이면 종료
-    if (session.isTerminated()) {
-      return;
-    }
-
-    // 세션 구독
-    await client.join(sessionId);
 
     // 회원 ID
     const memberId = Number(client.handshake.query.memberId);
     if (isNaN(memberId)) {
       throw new MemberIdNotAvailableException();
     }
+
+    // 적절한 session ID 할당
+    const sessionId: string =
+      await this.blindDateService.assignSession(memberId);
+
+    // 매칭된 방
+    const session: Session = await this.sessionService.getSession(sessionId);
+
+    // 종료된 방이면 종료
+    if (session.isTerminated()) {
+      client.emit(EVENT_TYPE.ENDED); // 종료됐다는 이벤트 발행
+      client.disconnect();
+      return;
+    }
+
+    // 세션 구독
+    await client.join(sessionId);
 
     // 세션에 회원 추가
     await this.sessionService.addMember(sessionId, memberId, client.id);
@@ -97,7 +94,7 @@ export class BlindDateGateway
     client.emit(EVENT_TYPE.JOIN, { name, sessionId });
 
     // 참여자 수
-    const volunteer = session.getVolunteer() + 1;
+    const volunteer = session.getParticipants().length + 1;
 
     // 방 인원 업데이트 이벤트 발행
     this.updateSessionVolunteer(sessionId, volunteer);
@@ -132,7 +129,8 @@ export class BlindDateGateway
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId);
 
-    const participants = await this.sessionService.getAllMembers(sessionId);
+    const participants =
+      await this.sessionService.getAllMembersSocket(sessionId);
     this.server.to(sessionId).emit('participants', participants);
 
     // 10초 선택시간 + 2초간 늦은 요청 처리를 위해 대기
@@ -153,56 +151,6 @@ export class BlindDateGateway
     const sessionIds: Set<string> = client.rooms;
 
     await this.sessionService.leave(sessionIds, client.id);
-  }
-
-  private async sendEventMessage(sessionId: string) {
-    for (const message of this.blindDateMessage.getEventMessage(
-      this.EVENT_MESSAGE_AMOUNT,
-    )) {
-      this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
-      this.server
-        .to(sessionId)
-        .emit(
-          EVENT_TYPE.SYSTEM,
-          new Broadcast(message, 0, '동냥이', new Date()),
-        );
-
-      // 메시지 전달 후 채팅 활성화
-      await new Promise<void>((resolve) => {
-        setTimeout(() => {
-          this.server.to(sessionId).emit(EVENT_TYPE.THAW);
-          resolve();
-        }, 5000); // 5초 후 시작
-      });
-
-      // 사용자 채팅 시간 주기
-      await new Promise<void>((resolve) => {
-        setTimeout(() => {
-          resolve();
-        }, 180000); // 3분
-      });
-    }
-  }
-
-  private getVolunteer(sessionId: string): number {
-    const volunteer: number | undefined = this.sessionMap
-      .get(sessionId)
-      ?.getVolunteer();
-
-    return volunteer ?? 0;
-  }
-
-  private emitStartEvent(sessionId: string) {
-    this.server.to(sessionId).emit(EVENT_TYPE.START, {
-      sessionId,
-    });
-  }
-
-  private updateSessionVolunteer(sessionId: string, volunteer: number): void {
-    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, {
-      sessionId,
-      volunteer,
-    });
   }
 
   @SubscribeMessage('message')
@@ -260,5 +208,48 @@ export class BlindDateGateway
     this.server
       .to(targetSocketId)
       .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+  }
+
+  private async sendEventMessage(sessionId: string) {
+    for (const message of this.blindDateMessage.getEventMessage(
+      this.EVENT_MESSAGE_AMOUNT,
+    )) {
+      this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
+      this.server
+        .to(sessionId)
+        .emit(
+          EVENT_TYPE.SYSTEM,
+          new Broadcast(message, 0, '동냥이', new Date()),
+        );
+
+      // 메시지 전달 후 채팅 활성화
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          this.server.to(sessionId).emit(EVENT_TYPE.THAW);
+          resolve();
+        }, 5000); // 5초 후 시작
+      });
+
+      // 사용자 채팅 시간 주기
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          resolve();
+        }, 1000); // 3분
+        // }, 180000); // 3분
+      });
+    }
+  }
+
+  private emitStartEvent(sessionId: string) {
+    this.server.to(sessionId).emit(EVENT_TYPE.START, {
+      sessionId,
+    });
+  }
+
+  private updateSessionVolunteer(sessionId: string, volunteer: number): void {
+    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, {
+      sessionId,
+      volunteer,
+    });
   }
 }

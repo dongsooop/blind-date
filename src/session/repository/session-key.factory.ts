@@ -1,20 +1,24 @@
 export class SessionKeyFactory {
   private static readonly PREFIX = 'blinddate';
 
-  public static getNameKeys(sessionId: string) {
-    return `${this.PREFIX}-name-map-${sessionId}`;
+  /**
+   * 세션 키
+   * sessionId: { participants: [{ memberId, [socketId], name }, ...], state: , nameCounter: 1 }
+   *
+   * @param sessionId
+   */
+  public static getSessionKey(sessionId: string) {
+    return `${this.PREFIX}-session-${sessionId}`;
   }
 
-  public static getClientsKeyName(sessionId: string) {
-    return `${this.PREFIX}-clients-${sessionId}`;
-  }
-
-  public static getSessionKeyName(sessionId: string) {
-    return `${this.PREFIX}-${sessionId}`;
-  }
-
-  public static getSocketKeyName(sessionId: string) {
-    return `${this.PREFIX}-socket-${sessionId}`;
+  /**
+   * 회원 키
+   * memberId: { socket: [1], session: 1, name: '익명1' }
+   *
+   * @param memberId
+   */
+  public static getMemberKey(memberId: number) {
+    return `${this.PREFIX}-member-${memberId}`;
   }
 
   public static getChoiceKeyName(sessionId: string) {
@@ -25,7 +29,20 @@ export class SessionKeyFactory {
     return `${this.PREFIX}-matches-${sessionId}`;
   }
 
+  /**
+   * 포인터 키
+   */
   public static getPointerKeyName() {
-    return '${this.PREFIX}-pointer';
+    return `${this.PREFIX}-pointer`;
+  }
+
+  /**
+   * 회원 키
+   * socketId: { member: 1, session: 1, name: '익명1' }
+   *
+   * @param socketId
+   */
+  public static getSocketKey(socketId: string) {
+    return `${this.PREFIX}-socket-${socketId}`;
   }
 }

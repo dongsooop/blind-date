@@ -7,7 +7,6 @@ export class SessionService {
 
   public async terminate(sessionId: string) {
     await this.sessionRepository.terminate(sessionId);
-    await this.sessionRepository.initPointer();
   }
 
   public async choice(sessionId: string, choicerId: number, targetId: number) {
@@ -41,8 +40,12 @@ export class SessionService {
     return this.sessionRepository.getNotMatched(sessionId);
   }
 
-  public getAllMembers(sessionId: string) {
-    return this.sessionRepository.getAllMembers(sessionId);
+  public async getAllMembersSocket(sessionId: string): Promise<string[]> {
+    const allMembersSocket =
+      await this.sessionRepository.getAllMembers(sessionId);
+    console.log(allMembersSocket);
+
+    return [...allMembersSocket.values()].flatMap((v) => [...v]);
   }
 
   public async start(sessionId: string) {
