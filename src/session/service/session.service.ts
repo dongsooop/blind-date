@@ -7,7 +7,6 @@ export class SessionService {
 
   public async terminate(sessionId: string) {
     await this.sessionRepository.terminate(sessionId);
-    await this.sessionRepository.initPointer();
   }
 
   public async choice(sessionId: string, choicerId: number, targetId: number) {
@@ -41,8 +40,14 @@ export class SessionService {
     return this.sessionRepository.getNotMatched(sessionId);
   }
 
-  public getAllMembers(sessionId: string) {
-    return this.sessionRepository.getAllMembers(sessionId);
+  public async getAllMembers(sessionId: string): Promise<[number, string][]> {
+    const participants =
+      await this.sessionRepository.getParticipants(sessionId);
+
+    return participants.reduce<[number, string][]>((acc, cur) => {
+      acc.push([cur.getMemberId(), cur.getName()]);
+      return acc;
+    }, []);
   }
 
   public async start(sessionId: string) {

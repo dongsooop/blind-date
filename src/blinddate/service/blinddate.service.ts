@@ -3,7 +3,6 @@ import { BlindDateAvailableRequest } from '@/blinddate/dto/blinddate.available.d
 import { SessionRepository } from '@/session/repository/session.repository';
 import { BLIND_DATE_STATUS } from '@/blinddate/constant/blinddate.status';
 import { Injectable } from '@nestjs/common';
-import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { SessionService } from '@/session/service/session.service';
@@ -50,15 +49,15 @@ export class BlindDateService {
 
   /**
    * 세션 배정
-   * @param sessionId
+   *
+   * @param memberId 회원 ID
    */
-  public async assignSession(sessionId: string | string[] | undefined) {
-    if (!sessionId || typeof sessionId !== 'string') {
-      throw new SessionIdNotFoundException();
-    }
+  public async assignSession(memberId: number) {
+    const sessionId =
+      await this.sessionRepository.getSessionIdByMemberId(memberId);
 
     // 재연결일 때
-    if (sessionId !== this.MATCHING_ROOM_ID) {
+    if (sessionId !== null) {
       return sessionId;
     }
 
@@ -66,19 +65,15 @@ export class BlindDateService {
 
     // pointer가 가리키는 세션이 없을 때
     if (pointer === null) {
-      const newPointer = await this.sessionRepository.create();
-      await this.sessionRepository.setPointer(newPointer);
-      return newPointer;
+      return await this.initPointer();
     }
 
     // pointer가 가리키는 세션의 인원수가 찼을 때
-    const volunteer =
-      (await this.sessionRepository.getSession(pointer)).getVolunteer() || 0;
+    const session = await this.sessionRepository.getSession(pointer);
+    const volunteer: number = session?.getParticipants().length || 0;
     const memberCount = await this.getMaxSessionMemberCount();
     if (volunteer >= memberCount) {
-      const newPointer = await this.sessionRepository.create();
-      await this.sessionRepository.setPointer(newPointer);
-      return newPointer;
+      return await this.initPointer();
     }
 
     return pointer;
@@ -143,5 +138,11 @@ export class BlindDateService {
     }
 
     return Number(memberCount);
+  }
+
+  private async initPointer() {
+    const newPointer = await this.sessionRepository.create();
+    await this.sessionRepository.setPointer(newPointer);
+    return newPointer;
   }
 }
