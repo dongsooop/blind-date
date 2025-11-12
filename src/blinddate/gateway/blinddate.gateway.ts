@@ -30,11 +30,13 @@ import { SessionService } from '@/session/service/session.service';
 export class BlindDateGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
-  @WebSocketServer()
-  server: Server;
+  private readonly sessionMap: Map<string, Session> = new Map();
+
   private readonly MATCHING_ROOM_ID = 'MATCHING';
   private readonly EVENT_MESSAGE_AMOUNT = 3;
-  private sessionMap: Map<string, Session> = new Map();
+
+  @WebSocketServer()
+  server: Server;
 
   constructor(
     private readonly blindDateMessage: BlindDateMessage,
@@ -102,11 +104,14 @@ export class BlindDateGateway
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
     const memberCount = await this.blindDateService.getMaxSessionMemberCount();
-    if (volunteer < memberCount) {
-      return;
-    }
 
-    // 마지막 참여자일 경우
+    // 세션이 대기 상태면서 마지막 참여자인 경우 세션 시작
+    if (session.isWaiting() && volunteer == memberCount) {
+      await this.startSession(sessionId);
+    }
+  }
+
+  async startSession(sessionId: string) {
     this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
     await this.sessionService.start(sessionId);
     this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
