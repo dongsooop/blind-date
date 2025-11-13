@@ -93,6 +93,7 @@ export class SessionRepository {
 
       // 소켓이 하나일 때 세션에서 나간 것으로 처리
       if (socketIds.length == 1) {
+        console.log(`Client out of session: ${sessionId}`);
         const participantsFiltered = participants.filter(
           (participant) => !participant.hasSocketId(sessionId),
         );
@@ -107,10 +108,12 @@ export class SessionRepository {
           .del(SessionKeyFactory.getSocketKey(socketId)) // 소켓 키 삭제
           .del(memberKey) // 회원 정보 삭제
           .exec();
+        return;
       }
 
       // 회원에게 등록된 소켓이 두 개 이상일 경우 소켓 정보만 제거
       if (socketIds.length > 1) {
+        console.log(`Client remove socketId: ${socketId}`);
         const socketIdsFiltered = socketIds.filter((v) => v !== socketId);
         participants.forEach((participant) => {
           if (participant.hasSocketId(sessionId)) {
