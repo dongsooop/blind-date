@@ -17,7 +17,6 @@ export class SessionRepository {
   private readonly BLINDDATE_KEY_NAME = 'blinddate';
   private readonly CHOICE_EXPIRED_TIME = 60 * 60 * 24;
   private readonly BLINDDATE_EXPIRED_TIME = 60 * 60 * 24;
-  private readonly VOLUNTEER_KEY_NAME = 'volunteer';
   private readonly NAME_COUNTER_KEY_NAME = 'nameCounter';
   private readonly MAX_MEMBER_COUNT_KEY_NAME = 'maxMemberCount';
   private readonly STATE_KEY_NAME = 'state';
@@ -60,10 +59,6 @@ export class SessionRepository {
       .exec();
 
     return sessionId;
-  }
-
-  public async initPointer() {
-    await this.redisClient.del(SessionKeyFactory.getPointerKeyName());
   }
 
   public async leave(sessionIds: Set<string>, socketId: string) {

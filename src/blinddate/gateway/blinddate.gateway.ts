@@ -130,9 +130,6 @@ export class BlindDateGateway
     await this.sendEventMessage(sessionId);
 
     const participants = await this.sessionService.getAllMembers(sessionId);
-    for (const p of participants) {
-      console.log(`p: ${p}`);
-    }
     this.server.to(sessionId).emit('participants', participants);
 
     // 10초 선택시간 + 2초간 늦은 요청 처리를 위해 대기

@@ -6,11 +6,10 @@ import { Injectable } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { SessionService } from '@/session/service/session.service';
+import { IBlindDateService } from '@/blinddate/service/blinddate.service.interface';
 
 @Injectable()
-export class BlindDateService {
-  private readonly MATCHING_ROOM_ID = 'MATCHING';
-
+export class BlindDateService implements IBlindDateService {
   constructor(
     private readonly sessionService: SessionService,
     private readonly sessionRepository: SessionRepository,
@@ -109,14 +108,14 @@ export class BlindDateService {
     sessionId: string;
     choicerId: number;
     targetId: number;
-  }) {
+  }): Promise<string | null> {
     const isMatched = await this.sessionService.choice(
       sessionId,
       choicerId,
       targetId,
     );
     if (!isMatched) {
-      return;
+      return null;
     }
 
     // 매칭 성공 시
