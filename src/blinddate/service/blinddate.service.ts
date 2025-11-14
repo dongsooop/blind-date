@@ -7,21 +7,23 @@ import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { SessionService } from '@/session/service/session.service';
 import { IBlindDateService } from '@/blinddate/service/blinddate.service.interface';
+import { BlindDateRepository } from '@/blinddate/repository/blinddate.repository';
 
 @Injectable()
 export class BlindDateService implements IBlindDateService {
   constructor(
     private readonly sessionService: SessionService,
     private readonly sessionRepository: SessionRepository,
+    private readonly blindDateRepository: BlindDateRepository,
     private readonly httpService: HttpService,
   ) {}
 
   public async availableBlindDate(request: BlindDateAvailableRequest) {
-    await this.sessionRepository.startBlindDate();
-    await this.sessionRepository.setMaxSessionMemberCount(
+    await this.blindDateRepository.startBlindDate();
+    await this.blindDateRepository.setMaxSessionMemberCount(
       request.getMaxSessionMemberCount(),
     );
-    await this.sessionRepository.setPointerExpire(
+    await this.blindDateRepository.setPointerExpire(
       request.getExpiredDate().getTime(),
     );
 
@@ -32,12 +34,12 @@ export class BlindDateService implements IBlindDateService {
     const expression = `0 ${expiredMinute} ${expiredHour} ${expiredDay} ${expiredMonth + 1} * *`;
 
     nodeCron.schedule(expression, async () => {
-      await this.sessionRepository.closeBlindDate();
+      await this.blindDateRepository.closeBlindDate();
     });
   }
 
   public async isAvailable(): Promise<boolean> {
-    const status = await this.sessionRepository.getBlindDateStatus();
+    const status = await this.blindDateRepository.getBlindDateStatus();
 
     if (!status || status === BLIND_DATE_STATUS.CLOSE) {
       return false;
@@ -60,7 +62,7 @@ export class BlindDateService implements IBlindDateService {
       return sessionId;
     }
 
-    const pointer = await this.sessionRepository.getPointer();
+    const pointer = await this.blindDateRepository.getPointer();
 
     // pointer가 가리키는 세션이 없을 때
     if (pointer === null) {
@@ -131,7 +133,8 @@ export class BlindDateService implements IBlindDateService {
   }
 
   public async getMaxSessionMemberCount() {
-    const memberCount = await this.sessionRepository.getMaxSessionMemberCount();
+    const memberCount =
+      await this.blindDateRepository.getMaxSessionMemberCount();
     if (!memberCount) {
       return 0;
     }
@@ -141,7 +144,7 @@ export class BlindDateService implements IBlindDateService {
 
   private async initPointer() {
     const newPointer = await this.sessionRepository.create();
-    await this.sessionRepository.setPointer(newPointer);
+    await this.blindDateRepository.setPointer(newPointer);
     return newPointer;
   }
 }

@@ -7,39 +7,21 @@ import {
   SESSION_STATE_TYPE,
 } from '@/session/const/session.constant';
 import Session from '@/session/entity/session.entity';
-import { BLIND_DATE_STATUS } from '@/blinddate/constant/blinddate.status';
 import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import { Participant } from '@/session/participant.entity';
 
 @Injectable()
 export class SessionRepository {
-  private readonly BLINDDATE_KEY_NAME = 'blinddate';
   private readonly CHOICE_EXPIRED_TIME = 60 * 60 * 24;
   private readonly BLINDDATE_EXPIRED_TIME = 60 * 60 * 24;
   private readonly NAME_COUNTER_KEY_NAME = 'nameCounter';
-  private readonly MAX_MEMBER_COUNT_KEY_NAME = 'maxMemberCount';
   private readonly STATE_KEY_NAME = 'state';
   private readonly PARTICIPANTS_KEY_NAME = 'participants';
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
   ) {}
-
-  public getPointer() {
-    return this.redisClient.get(SessionKeyFactory.getPointerKeyName());
-  }
-
-  public async setPointerExpire(expiredTime: number) {
-    await this.redisClient.expireAt(
-      SessionKeyFactory.getPointerKeyName(),
-      expiredTime,
-    );
-  }
-
-  public async setPointer(pointer: string) {
-    await this.redisClient.set(SessionKeyFactory.getPointerKeyName(), pointer);
-  }
 
   /**
    * 세션 생성 및 redis 초기화
@@ -339,21 +321,6 @@ export class SessionRepository {
     return [...allMembersSocket.values()].flatMap((v) => [...v]);
   }
 
-  public async setMaxSessionMemberCount(count: number) {
-    await this.redisClient.hSet(
-      this.BLINDDATE_KEY_NAME,
-      this.MAX_MEMBER_COUNT_KEY_NAME,
-      count,
-    );
-  }
-
-  public getMaxSessionMemberCount() {
-    return this.redisClient.hGet(
-      this.BLINDDATE_KEY_NAME,
-      this.MAX_MEMBER_COUNT_KEY_NAME,
-    );
-  }
-
   public async getSession(sessionId: string) {
     const rawData = await this.getSessionData(sessionId);
     if (!rawData) {
@@ -386,30 +353,6 @@ export class SessionRepository {
   public getSessionIdByMemberId(memberId: number): Promise<string | null> {
     const memberKey = SessionKeyFactory.getMemberKey(memberId);
     return this.redisClient.hGet(memberKey, 'session');
-  }
-
-  public async startBlindDate() {
-    await this.redisClient
-      .multi()
-      .hSet(
-        this.BLINDDATE_KEY_NAME,
-        this.STATE_KEY_NAME,
-        BLIND_DATE_STATUS.OPEN,
-      )
-      .expire(this.BLINDDATE_KEY_NAME, this.BLINDDATE_EXPIRED_TIME)
-      .exec();
-  }
-
-  public async closeBlindDate() {
-    await this.redisClient.hSet(
-      this.BLINDDATE_KEY_NAME,
-      this.STATE_KEY_NAME,
-      BLIND_DATE_STATUS.CLOSE,
-    );
-  }
-
-  public getBlindDateStatus() {
-    return this.redisClient.hGet(this.BLINDDATE_KEY_NAME, this.STATE_KEY_NAME);
   }
 
   private parsedParticipants(participantsRaw: string): Participant[] {
