@@ -183,9 +183,9 @@ export class SessionRepository {
 
     const nameCount = participantsRaw
       ? ((JSON.parse(participantsRaw) as any[]).length ?? 1)
-      : 1;
+      : 0;
 
-    const name = `익명${nameCount}`;
+    const name = `익명${nameCount + 1}`;
 
     const participants = await this.getParticipants(sessionId);
     participants.push(new Participant(memberId, [socketId], name));
