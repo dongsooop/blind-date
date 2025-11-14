@@ -32,8 +32,16 @@ export class SessionService {
     return name;
   }
 
-  public async leave(sessionIds: Set<string>, socketId: string) {
-    await this.sessionRepository.leave(sessionIds, socketId);
+  public async leave(socketId: string) {
+    const sessionId =
+      await this.sessionRepository.getSessionIdBySocketId(socketId);
+
+    if (!sessionId) {
+      console.log(`Unable to leave '${socketId}'`);
+      return;
+    }
+
+    await this.sessionRepository.leave(sessionId, socketId);
   }
 
   public getNotMatched(sessionId: string) {

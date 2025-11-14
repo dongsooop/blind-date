@@ -67,6 +67,7 @@ export class BlindDateGateway
     // 적절한 session ID 할당
     const sessionId: string =
       await this.blindDateService.assignSession(memberId);
+    console.log(`Session ID: ${sessionId}`);
 
     // 매칭된 방
     const session: Session = await this.sessionService.getSession(sessionId);
@@ -147,9 +148,8 @@ export class BlindDateGateway
 
   async handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
-    const sessionIds: Set<string> = client.rooms;
 
-    await this.sessionService.leave(sessionIds, client.id);
+    await this.sessionService.leave(client.id);
   }
 
   @SubscribeMessage('message')

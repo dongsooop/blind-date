@@ -61,7 +61,7 @@ export class SessionRepository {
     return sessionId;
   }
 
-  public async leave(sessionIds: Set<string>, socketId: string) {
+  public async leave(sessionId: string, socketId: string) {
     const socketKey = SessionKeyFactory.getSocketKey(socketId);
     const memberId = Number(
       (await this.redisClient.hGet(socketKey, 'member')) || 0,
@@ -72,66 +72,57 @@ export class SessionRepository {
 
     const socketIds = JSON.parse(socketIdsRaw || '[]') as string[];
 
-    for (const sessionId of sessionIds) {
-      const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
+    const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
 
-      // 대기중인 방이 아닌 경우 별도 나감 상태를 처리하지 않음
-      const state = await this.redisClient.hGet(
-        sessionKey,
-        this.STATE_KEY_NAME,
-      );
+    // 대기중인 방이 아닌 경우 별도 나감 상태를 처리하지 않음
+    const state = await this.redisClient.hGet(sessionKey, this.STATE_KEY_NAME);
 
-      if (state !== SESSION_STATE.WAITING) {
-        continue;
-      }
+    if (state !== SESSION_STATE.WAITING) {
+      return;
+    }
 
-      const participantsRaw =
-        (await this.redisClient.hGet(sessionKey, this.PARTICIPANTS_KEY_NAME)) ||
-        '[]';
+    const participants = await this.getParticipants(sessionId);
 
-      const participants = JSON.parse(participantsRaw) as Participant[];
+    // 소켓이 하나일 때 세션에서 나간 것으로 처리
+    if (socketIds.length == 1) {
+      console.log(`Client out of session: ${sessionId}`);
+      const participantsFiltered = participants.filter((participant) => {
+        return !participant.hasSocketId(socketId);
+      });
 
-      // 소켓이 하나일 때 세션에서 나간 것으로 처리
-      if (socketIds.length == 1) {
-        console.log(`Client out of session: ${sessionId}`);
-        const participantsFiltered = participants.filter(
-          (participant) => !participant.hasSocketId(sessionId),
-        );
+      await this.redisClient
+        .multi()
+        .hSet(
+          SessionKeyFactory.getSessionKey(sessionId),
+          this.PARTICIPANTS_KEY_NAME,
+          JSON.stringify(participantsFiltered),
+        ) // 참가자 목록에서 회원 정보 제거
+        .del(SessionKeyFactory.getSocketKey(socketId)) // 소켓 키 삭제
+        .del(memberKey) // 회원 정보 삭제
+        .exec();
+      return;
+    }
 
-        await this.redisClient
-          .multi()
-          .hSet(
-            SessionKeyFactory.getSessionKey(sessionId),
-            this.PARTICIPANTS_KEY_NAME,
-            JSON.stringify(participantsFiltered),
-          ) // 참가자 목록에서 회원 정보 제거
-          .del(SessionKeyFactory.getSocketKey(socketId)) // 소켓 키 삭제
-          .del(memberKey) // 회원 정보 삭제
-          .exec();
-        return;
-      }
+    // 회원에게 등록된 소켓이 두 개 이상일 경우 소켓 정보만 제거
+    if (socketIds.length > 1) {
+      console.log(`Client remove socketId: ${socketId}`);
+      const socketIdsFiltered = socketIds.filter((v) => v !== socketId);
+      participants.forEach((participant) => {
+        if (participant.hasSocketId(sessionId)) {
+          participant.removeSocketId(socketId);
+        }
+      });
 
-      // 회원에게 등록된 소켓이 두 개 이상일 경우 소켓 정보만 제거
-      if (socketIds.length > 1) {
-        console.log(`Client remove socketId: ${socketId}`);
-        const socketIdsFiltered = socketIds.filter((v) => v !== socketId);
-        participants.forEach((participant) => {
-          if (participant.hasSocketId(sessionId)) {
-            participant.removeSocketId(socketId);
-          }
-        });
-
-        await this.redisClient
-          .multi()
-          .hSet(
-            SessionKeyFactory.getSessionKey(sessionId),
-            this.PARTICIPANTS_KEY_NAME,
-            JSON.stringify(participants),
-          ) // 참가자 목록에서 소켓 아이디 제거
-          .del(SessionKeyFactory.getSocketKey(socketId)) // 소켓 키 삭제
-          .hSet(memberKey, 'socket', JSON.stringify(socketIdsFiltered))
-          .exec();
-      }
+      await this.redisClient
+        .multi()
+        .hSet(
+          SessionKeyFactory.getSessionKey(sessionId),
+          this.PARTICIPANTS_KEY_NAME,
+          JSON.stringify(participants),
+        ) // 참가자 목록에서 소켓 아이디 제거
+        .del(SessionKeyFactory.getSocketKey(socketId)) // 소켓 키 삭제
+        .hSet(memberKey, 'socket', JSON.stringify(socketIdsFiltered))
+        .exec();
     }
   }
 
@@ -217,6 +208,13 @@ export class SessionRepository {
       .exec();
 
     await this.redisClient.unwatch();
+  }
+
+  public async getSessionIdBySocketId(socketId: string) {
+    return await this.redisClient.hGet(
+      SessionKeyFactory.getSocketKey(socketId),
+      'session',
+    );
   }
 
   public async getParticipants(sessionId: string) {
