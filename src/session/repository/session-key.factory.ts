@@ -11,6 +11,20 @@ export class SessionKeyFactory {
     return `${this.PREFIX}-session-${sessionId}`;
   }
 
+  public static getParticipantsKey(sessionId: string) {
+    return `${this.PREFIX}-participants-${sessionId}`;
+  }
+
+  /**
+   * 회원 소켓 키
+   * memberId: { socket: [1], session: 1, name: '익명1' }
+   *
+   * @param memberId
+   */
+  public static getMemberSocketKey(memberId: number) {
+    return `${this.PREFIX}-member-socket-${memberId}`;
+  }
+
   /**
    * 회원 키
    * memberId: { socket: [1], session: 1, name: '익명1' }

@@ -33,7 +33,6 @@ export class SessionRepository {
     await this.redisClient
       .multi()
       .hSet(sessionKey, {
-        [this.PARTICIPANTS_KEY_NAME]: JSON.stringify([]),
         [this.STATE_KEY_NAME]: SESSION_STATE.WAITING,
         [this.NAME_COUNTER_KEY_NAME]: 1,
       })
@@ -114,80 +113,65 @@ export class SessionRepository {
     socketId: string,
   ) {
     const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
+    const participantsKey = SessionKeyFactory.getParticipantsKey(sessionId);
     const memberKey = SessionKeyFactory.getMemberKey(memberId);
+    const memberSocketKey = SessionKeyFactory.getMemberSocketKey(memberId);
     const socketKey = SessionKeyFactory.getSocketKey(socketId);
 
-    await this.redisClient.watch([sessionKey, memberKey, socketKey]);
+    // 커밋 중 충돌 시 재시도
+    for (let retry = 0; retry < 3; retry++) {
+      await this.redisClient.watch([
+        sessionKey,
+        participantsKey,
+        memberKey,
+        memberSocketKey,
+        socketKey,
+      ]);
 
-    // 이미 존재하는 회원인지 검사
-    if ((await this.redisClient.hGet(memberKey, 'session')) === sessionId) {
-      const name = await this.redisClient.hGet(memberKey, 'name');
-
-      const participants = await this.getParticipants(sessionId);
-
-      participants.forEach((participant) => {
-        if (participant.equalsMemberId(memberId)) {
-          participant.addSocketId(socketId);
-        }
-      });
-
-      const socketIds = await this.getSocketIds(memberId);
-      socketIds.push(socketId);
-
-      if (name !== null) {
+      // 이미 존재하는 회원인지 검사
+      if (await this.redisClient.sIsMember(participantsKey, String(memberId))) {
         // 소켓 아이디 추가
-        await this.redisClient
+        const result = await this.redisClient
           .multi()
-          .hSet(
-            sessionKey,
-            this.PARTICIPANTS_KEY_NAME,
-            JSON.stringify(participants),
-          ) // 참가자 목록에 소켓 아이디 추가
-          .hSet(memberKey, 'socket', JSON.stringify(socketIds)) // 사용자 소켓 추가
-          .hSet(memberKey, 'session', sessionId) // 사용자 세션 설정
+          .sAdd(memberSocketKey, socketId)
           .hSet(socketKey, 'member', memberId) // 소켓에 회원 id 바인드
-          .hSet(socketKey, 'session', sessionId) // 소켓에 세션 id 바인드
-          .hSet(socketKey, 'name', name) // 소켓에 이름 바인드
+          .hSet(socketKey, 'session', sessionId)
           .expire(memberKey, this.BLINDDATE_EXPIRED_TIME)
+          .expire(memberSocketKey, this.BLINDDATE_EXPIRED_TIME)
           .expire(socketKey, this.BLINDDATE_EXPIRED_TIME)
           .exec();
 
-        await this.redisClient.unwatch();
+        if (result === null) {
+          continue;
+        }
 
         return;
       }
+
+      const nameCount = Number(
+        await this.redisClient.hGet(sessionKey, this.NAME_COUNTER_KEY_NAME),
+      );
+
+      const name = `익명${nameCount + 1}`;
+
+      const result = await this.redisClient
+        .multi()
+        .sAdd(participantsKey, String(memberId)) // 참가자 정보 등록
+        .hSet(memberKey, 'name', name) // 사용자 이름 설정
+        .hSet(memberKey, 'session', sessionId) // 사용자 세션 설정
+        .sAdd(memberSocketKey, socketId) // 사용자 소켓 추가
+        .hSet(socketKey, 'member', memberId) // 소켓에 회원 id 바인드
+        .hSet(socketKey, 'session', sessionId) // 소켓에 세션 id 바인드
+        .hIncrBy(sessionKey, this.NAME_COUNTER_KEY_NAME, 1)
+        .expire(memberKey, this.BLINDDATE_EXPIRED_TIME)
+        .expire(memberSocketKey, this.BLINDDATE_EXPIRED_TIME)
+        .expire(socketKey, this.BLINDDATE_EXPIRED_TIME)
+        .exec();
+
+      if (result !== null) {
+        return;
+      }
     }
-
-    const participantsRaw: string | null = await this.redisClient.hGet(
-      sessionKey,
-      this.PARTICIPANTS_KEY_NAME,
-    );
-
-    const nameCount = participantsRaw
-      ? ((JSON.parse(participantsRaw) as any[]).length ?? 1)
-      : 0;
-
-    const name = `익명${nameCount + 1}`;
-
-    const participants = await this.getParticipants(sessionId);
-    participants.push(new Participant(memberId, [socketId], name));
-
-    await this.redisClient
-      .multi()
-      .hSet(
-        sessionKey,
-        this.PARTICIPANTS_KEY_NAME,
-        JSON.stringify(participants),
-      ) // 참가자 정보 등록
-      .hSet(memberKey, 'name', name) // 사용자 이름 설정
-      .hSet(memberKey, 'session', sessionId) // 사용자 세션 설정
-      .hSet(memberKey, 'socket', JSON.stringify([socketId])) // 사용자 소켓 추가
-      .hSet(socketKey, 'member', memberId) // 소켓에 회원 id 바인드
-      .hSet(socketKey, 'session', sessionId) // 소켓에 세션 id 바인드
-      .hSet(socketKey, 'name', name) // 소켓에 이름 바인드
-      .expire(memberKey, this.BLINDDATE_EXPIRED_TIME)
-      .expire(socketKey, this.BLINDDATE_EXPIRED_TIME)
-      .exec();
 
     await this.redisClient.unwatch();
   }
