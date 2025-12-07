@@ -81,6 +81,12 @@ export class BlindDateGateway
 
     // 세션 구독
     await client.join(sessionId);
+    await client.join(`${sessionId}-${memberId}`);
+
+    const clientData = client.data as { sessionId?: string; memberId?: number };
+
+    clientData.sessionId = sessionId;
+    clientData.memberId = memberId;
 
     // 세션에 회원 추가
     await this.sessionService.addMember(sessionId, memberId, client.id);
@@ -95,13 +101,16 @@ export class BlindDateGateway
     client.emit(EVENT_TYPE.JOIN, { name, sessionId });
 
     // 참여자 수
-    const volunteer = session.getParticipants().length + 1;
+    const volunteer = session.getParticipants().length;
 
     // 방 인원 업데이트 이벤트 발행
     this.updateSessionVolunteer(sessionId, volunteer);
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
     const memberCount = await this.blindDateService.getMaxSessionMemberCount();
+
+    console.log(session.isWaiting());
+    console.log(volunteer + '::' + memberCount);
 
     // 세션이 대기 상태면서 마지막 참여자인 경우 세션 시작
     if (session.isWaiting() && volunteer == memberCount) {
@@ -136,11 +145,14 @@ export class BlindDateGateway
     // 10초 선택시간 + 2초간 늦은 요청 처리를 위해 대기
     await new Promise<void>((resolve) => setTimeout(resolve, 12000));
 
-    const notMatchedUserSocket =
-      await this.sessionService.getNotMatched(sessionId);
+    const notMatchedMember = await this.sessionService.getNotMatched(sessionId);
 
-    if (notMatchedUserSocket.length > 0) {
-      this.server.to(notMatchedUserSocket).emit('failed');
+    if (notMatchedMember.length > 0) {
+      const notMatchedMemberSocketRooms = notMatchedMember.map(
+        (memberId) => `${sessionId}-${memberId}`,
+      );
+
+      this.server.to(notMatchedMemberSocketRooms).emit('failed');
     }
 
     await this.sessionService.terminate(sessionId);
@@ -149,7 +161,30 @@ export class BlindDateGateway
   async handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
 
-    await this.sessionService.leave(client.id);
+    const { sessionId, memberId } = client.data as {
+      sessionId?: string;
+      memberId?: number;
+    };
+
+    if (!sessionId || !memberId) {
+      console.error(`Missing sessionId or memberId for client: ${client.id}`);
+      return;
+    }
+
+    const sessionMemberId = `${sessionId}-${memberId}`;
+
+    const room = this.server?.sockets?.adapter?.rooms?.get(sessionMemberId);
+    if (!room) {
+      console.error(`Room not found for sessionMemberId: ${sessionMemberId}`);
+      return;
+    }
+
+    // 이미 다른 디바이스에서 접속중인 경우
+    if (room.size > 0) {
+      return;
+    }
+
+    await this.sessionService.leave(sessionId, memberId);
   }
 
   @SubscribeMessage('message')
@@ -189,23 +224,16 @@ export class BlindDateGateway
       `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
     );
 
-    const targetSocketId = await this.sessionService.getSocketIdByMemberId(
-      data.sessionId,
-      data.targetId,
-    );
-
-    if (!targetSocketId) {
-      return;
-    }
-
     const createdRoomId = await this.blindDateService.choice(data);
     if (createdRoomId === null || createdRoomId === undefined) {
       return;
     }
 
-    this.server.to(client.id).emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
     this.server
-      .to(targetSocketId)
+      .to(`${data.sessionId}-${data.choicerId}`)
+      .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
+    this.server
+      .to(`${data.sessionId}-${data.targetId}`)
       .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
   }
 

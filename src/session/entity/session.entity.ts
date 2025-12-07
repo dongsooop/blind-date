@@ -2,10 +2,9 @@ import {
   SESSION_STATE,
   SESSION_STATE_TYPE,
 } from '@/session/const/session.constant';
-import { Participant } from '@/session/participant.entity';
 
 export default class Session {
-  private readonly participants: Participant[];
+  private readonly participants: string[];
   private readonly state: SESSION_STATE_TYPE;
   private readonly nameCounter: number;
 
@@ -14,7 +13,7 @@ export default class Session {
     state,
     nameCounter,
   }: {
-    participants: Participant[];
+    participants: string[];
     state: SESSION_STATE_TYPE;
     nameCounter: number;
   }) {

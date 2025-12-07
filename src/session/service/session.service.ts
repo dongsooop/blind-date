@@ -16,15 +16,8 @@ export class SessionService {
     );
   }
 
-  public async getSocketIdByMemberId(sessionId: string, targetId: number) {
-    return await this.sessionRepository.getSocketIdByMemberId(
-      sessionId,
-      targetId,
-    );
-  }
-
   public async getName(sessionId: string, memberId: number) {
-    const name = await this.sessionRepository.getName(sessionId, memberId);
+    const name = await this.sessionRepository.getName(memberId);
     if (!name) {
       throw new Error(`Unable to get member '${memberId}'`);
     }
@@ -32,30 +25,16 @@ export class SessionService {
     return name;
   }
 
-  public async leave(socketId: string) {
-    const sessionId =
-      await this.sessionRepository.getSessionIdBySocketId(socketId);
-
-    if (!sessionId) {
-      console.log(`Unable to leave '${socketId}'`);
-      return;
-    }
-
-    await this.sessionRepository.leave(sessionId, socketId);
+  public async leave(sessionId: string, memberId: number) {
+    await this.sessionRepository.leave(sessionId, memberId);
   }
 
   public getNotMatched(sessionId: string) {
     return this.sessionRepository.getNotMatched(sessionId);
   }
 
-  public async getAllMembers(sessionId: string): Promise<[number, string][]> {
-    const participants =
-      await this.sessionRepository.getParticipants(sessionId);
-
-    return participants.reduce<[number, string][]>((acc, cur) => {
-      acc.push([cur.getMemberId(), cur.getName()]);
-      return acc;
-    }, []);
+  public getAllMembers(sessionId: string): Promise<[number, string][]> {
+    return this.sessionRepository.getParticipantsIdAndName(sessionId);
   }
 
   public async start(sessionId: string) {
