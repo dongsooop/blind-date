@@ -106,7 +106,7 @@ export class BlindDateGateway
     const volunteer = session.getParticipants().length;
 
     // 방 인원 업데이트 이벤트 발행
-    this.updateSessionVolunteer(sessionId, volunteer);
+    this.updateSessionVolunteer(sessionId, volunteer + 1);
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
     const memberCount = await this.blindDateService.getMaxSessionMemberCount();

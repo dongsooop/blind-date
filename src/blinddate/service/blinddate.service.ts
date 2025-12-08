@@ -23,9 +23,8 @@ export class BlindDateService implements IBlindDateService {
     await this.blindDateRepository.setMaxSessionMemberCount(
       request.getMaxSessionMemberCount(),
     );
-    await this.blindDateRepository.setPointerExpire(
-      request.getExpiredDate().getTime(),
-    );
+
+    await this.blindDateRepository.resetPointer();
 
     const expiredMinute = request.getExpiredDate().getMinutes();
     const expiredHour = request.getExpiredDate().getHours();

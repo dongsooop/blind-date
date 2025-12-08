@@ -19,13 +19,6 @@ export class BlindDateRepository {
     return this.redisClient.get(SessionKeyFactory.getPointerKeyName());
   }
 
-  public async setPointerExpire(expiredTime: number) {
-    await this.redisClient.expireAt(
-      SessionKeyFactory.getPointerKeyName(),
-      expiredTime,
-    );
-  }
-
   public async setPointer(pointer: string) {
     await this.redisClient.set(SessionKeyFactory.getPointerKeyName(), pointer);
   }
@@ -63,6 +56,10 @@ export class BlindDateRepository {
       this.STATE_KEY_NAME,
       BLIND_DATE_STATUS.CLOSE,
     );
+  }
+
+  public async resetPointer() {
+    await this.redisClient.del(SessionKeyFactory.getPointerKeyName());
   }
 
   public getBlindDateStatus() {
