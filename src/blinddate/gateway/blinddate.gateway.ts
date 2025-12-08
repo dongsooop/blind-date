@@ -67,7 +67,6 @@ export class BlindDateGateway
     // 적절한 session ID 할당
     const sessionId: string =
       await this.blindDateService.assignSession(memberId);
-    console.log(`Session ID: ${sessionId}`);
 
     // 매칭된 방
     const session: Session = await this.sessionService.getSession(sessionId);
@@ -89,15 +88,18 @@ export class BlindDateGateway
     clientData.memberId = memberId;
 
     // 세션에 회원 추가
-    await this.sessionService.addMember(sessionId, memberId, client.id);
+    const name = await this.sessionService.addMember(
+      sessionId,
+      memberId,
+      client.id,
+    );
 
     // 대기중인 방이 아닌 경우 재입장으로 간주하고 종료
-    if (!session.isWaiting()) {
+    if (!session.isWaiting() || !name) {
       return;
     }
 
     // 회원 닉네임
-    const name = await this.sessionService.getName(sessionId, Number(memberId));
     client.emit(EVENT_TYPE.JOIN, { name, sessionId });
 
     // 참여자 수
@@ -109,11 +111,8 @@ export class BlindDateGateway
     // 현재 사용자가 마지막 참여자가 아닐때 종료
     const memberCount = await this.blindDateService.getMaxSessionMemberCount();
 
-    console.log(session.isWaiting());
-    console.log(volunteer + '::' + memberCount);
-
     // 세션이 대기 상태면서 마지막 참여자인 경우 세션 시작
-    if (session.isWaiting() && volunteer == memberCount) {
+    if (session.isWaiting() && volunteer + 1 == memberCount) {
       await this.startSession(sessionId);
     }
   }
@@ -171,20 +170,8 @@ export class BlindDateGateway
       return;
     }
 
-    const sessionMemberId = `${sessionId}-${memberId}`;
-
-    const room = this.server?.sockets?.adapter?.rooms?.get(sessionMemberId);
-    if (!room) {
-      console.error(`Room not found for sessionMemberId: ${sessionMemberId}`);
-      return;
-    }
-
-    // 이미 다른 디바이스에서 접속중인 경우
-    if (room.size > 0) {
-      return;
-    }
-
-    await this.sessionService.leave(sessionId, memberId);
+    const volunteer = await this.sessionService.leave(sessionId, memberId);
+    this.updateSessionVolunteer(sessionId, volunteer);
   }
 
   @SubscribeMessage('message')

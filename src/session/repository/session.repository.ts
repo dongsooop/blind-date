@@ -45,8 +45,12 @@ export class SessionRepository {
     const memberKey = SessionKeyFactory.getMemberKey(memberId);
     const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
 
+    let volunteer = -1;
+
     for (let retry = 0; retry < 3; retry++) {
       await this.redisClient.watch([sessionKey, participantsKey, memberKey]);
+
+      volunteer = await this.redisClient.sCard(participantsKey);
 
       // 대기중인 방이 아닌 경우 별도 나감 상태를 처리하지 않음
       const state = await this.redisClient.hGet(
@@ -56,26 +60,46 @@ export class SessionRepository {
 
       // 세션 대기 상태가 아닌 경우 종료
       if (state !== SESSION_STATE.WAITING) {
-        return;
+        return volunteer;
       }
 
       // 세션 대기 상태인 경우 퇴장 처리
       console.log(`Client out of session: ${sessionId}`);
 
+      const memberSocketKey = `${sessionId}-${memberId}`;
+      const socketAmount = await this.redisClient.sCard(memberSocketKey);
+
+      // 여러 디바이스로 접근중인 경우
+      if (socketAmount > 1) {
+        const result = await this.redisClient
+          .multi()
+          .sRem(memberSocketKey, memberId.toString())
+          .exec();
+
+        if (result === null) {
+          continue;
+        }
+
+        return volunteer;
+      }
+
+      // 하나의 디바이스로 접근중인 경우
       const result = await this.redisClient
         .multi()
-        .sRem(participantsKey, String(memberId)) // 참가자 목록에서 회원 정보 제거
+        .sRem(memberSocketKey, memberId.toString())
+        .sRem(participantsKey, memberId.toString()) // 참가자 목록에서 회원 정보 제거
         .hDel(memberKey, 'session') // 회원의 세션 정보 초기화
         .exec();
 
       if (result !== null) {
-        return;
+        return volunteer - 1;
       }
     }
 
     console.error(
       `Failed to leave session: ${sessionId} for member: ${memberId}`,
     );
+    return volunteer;
   }
 
   public async addMember(
@@ -86,6 +110,7 @@ export class SessionRepository {
     const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
     const participantsKey = SessionKeyFactory.getParticipantsKey(sessionId);
     const memberKey = SessionKeyFactory.getMemberKey(memberId);
+    const memberSocketKey = SessionKeyFactory.getMemberSocketKey(memberId);
     const socketKey = SessionKeyFactory.getSocketKey(socketId);
 
     // 커밋 중 충돌 시 재시도
@@ -95,11 +120,19 @@ export class SessionRepository {
         participantsKey,
         memberKey,
         socketKey,
+        memberSocketKey,
       ]);
+
+      console.log(
+        'already' +
+          (await this.redisClient.sIsMember(participantsKey, String(memberId))),
+      );
 
       // 이미 존재하는 회원이면 종료
       if (await this.redisClient.sIsMember(participantsKey, String(memberId))) {
-        return;
+        await this.redisClient.sAdd(memberSocketKey, socketId);
+        await this.redisClient.unwatch();
+        return null;
       }
 
       const nameCount = Number(
@@ -113,6 +146,7 @@ export class SessionRepository {
         .sAdd(participantsKey, String(memberId)) // 참가자 정보 등록
         .hSet(memberKey, 'name', name) // 사용자 이름 설정
         .hSet(memberKey, 'session', sessionId) // 사용자 세션 설정
+        .sAdd(memberSocketKey, memberId.toString()) // 사용사 소켓 목록 추가
         .hSet(socketKey, 'member', memberId) // 소켓에 회원 id 바인드
         .hSet(socketKey, 'session', sessionId) // 소켓에 세션 id 바인드
         .hIncrBy(sessionKey, this.NAME_COUNTER_KEY_NAME, 1)
@@ -121,11 +155,18 @@ export class SessionRepository {
         .exec();
 
       if (result !== null) {
-        return;
+        return name;
       }
     }
 
     await this.redisClient.unwatch();
+    console.error(`failed to join session ! sessionId: ${sessionId}`);
+    return null;
+  }
+
+  public getSocketIdsByMember(memberId: number) {
+    const memberSocketKey = SessionKeyFactory.getMemberSocketKey(memberId);
+    return this.redisClient.sMembers(memberSocketKey);
   }
 
   public async getParticipantsIdAndName(sessionId: string) {
@@ -247,7 +288,7 @@ export class SessionRepository {
     }
 
     const participants = await this.redisClient.sMembers(participantsKey);
-
+    console.log('participants', participants);
     const sessionData = {
       participants,
       state: rawData[this.STATE_KEY_NAME] as SESSION_STATE_TYPE,

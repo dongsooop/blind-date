@@ -25,8 +25,8 @@ export class SessionService {
     return name;
   }
 
-  public async leave(sessionId: string, memberId: number) {
-    await this.sessionRepository.leave(sessionId, memberId);
+  public leave(sessionId: string, memberId: number) {
+    return this.sessionRepository.leave(sessionId, memberId);
   }
 
   public getNotMatched(sessionId: string) {
@@ -41,15 +41,15 @@ export class SessionService {
     await this.sessionRepository.start(sessionId);
   }
 
-  public async addMember(
-    sessionId: string,
-    memberId: number,
-    socketId: string,
-  ) {
-    await this.sessionRepository.addMember(sessionId, memberId, socketId);
+  public addMember(sessionId: string, memberId: number, socketId: string) {
+    return this.sessionRepository.addMember(sessionId, memberId, socketId);
   }
 
   public getSession(sessionId: string) {
     return this.sessionRepository.getSession(sessionId);
+  }
+
+  public getSocketIdsByMember(memberId: number) {
+    return this.sessionRepository.getSocketIdsByMember(memberId);
   }
 }
