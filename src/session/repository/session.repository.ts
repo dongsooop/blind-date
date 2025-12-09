@@ -117,7 +117,8 @@ export class SessionRepository {
       .expire(socketKey, this.BLINDDATE_EXPIRED_TIME)
       .exec();
 
-    return await this.redisClient.sCard(participantsKey);
+    const lastVolunteer = await this.redisClient.sCard(participantsKey);
+    return { volunteer: lastVolunteer, name };
   }
 
   public getSocketIdsByMember(memberId: number) {

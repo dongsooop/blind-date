@@ -83,10 +83,13 @@ export class QueueConsumer {
     const { sessionId, joinStatus } =
       await this.blindDateService.assignSession(memberId);
 
-    const volunteer =
-      (await this.sessionService.addMember(sessionId, memberId, socketId)) || 0;
+    const result = await this.sessionService.addMember(
+      sessionId,
+      memberId,
+      socketId,
+    );
 
-    if (!sessionId) {
+    if (!result) {
       console.error(
         '[QueueConsumer] Unknown sessionId or volunteerId is not set',
       );
@@ -121,14 +124,15 @@ export class QueueConsumer {
       return;
     }
     // 방 인원 업데이트 이벤트 발행
-    this.updateSessionVolunteer(sessionId, volunteer);
+    this.updateSessionVolunteer(sessionId, result.volunteer);
+    socket.emit(EVENT_TYPE.JOIN, { name: result.name, sessionId });
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
     const maxMemberCount =
       await this.blindDateService.getMaxSessionMemberCount();
 
     // 세션이 대기 상태면서 마지막 참여자인 경우 세션 시작
-    if (volunteer == maxMemberCount) {
+    if (result.volunteer == maxMemberCount) {
       this.startSession(sessionId);
     }
   }
