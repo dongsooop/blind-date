@@ -9,15 +9,15 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 import { EVENT_TYPE } from '@/blinddate/constant/blinddate.event.type';
 import { Broadcast } from '@/blinddate/constant/Broadcast';
-import Session from '@/session/entity/session.entity';
 import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
 import { CustomWsExceptionFilter } from '@/exception-filter/websocket.exception.filter';
 import { UseFilters } from '@nestjs/common';
 import { SessionService } from '@/session/service/session.service';
+import { QueueProducer } from '@/queue/queue.producer';
+import { QueueConsumer } from '@/queue/queue.consumer';
 
 @UseFilters(CustomWsExceptionFilter)
 @WebSocketGateway({
@@ -32,16 +32,17 @@ export class BlindDateGateway
 {
   @WebSocketServer()
   server: Server;
-  private readonly EVENT_MESSAGE_AMOUNT = 3;
 
   constructor(
-    private readonly blindDateMessage: BlindDateMessage,
     private readonly blindDateService: BlindDateService,
     private readonly sessionService: SessionService,
+    private readonly queueProducer: QueueProducer,
+    private readonly queueConsumer: QueueConsumer,
   ) {}
 
   afterInit() {
     console.log('WebSocket Gateway Initialized');
+    this.queueConsumer.initServer(this.server);
   }
 
   /**
@@ -64,114 +65,22 @@ export class BlindDateGateway
       throw new MemberIdNotAvailableException();
     }
 
-    // 적절한 session ID 할당
-    const sessionId: string =
-      await this.blindDateService.assignSession(memberId);
-
-    // 매칭된 방
-    const session: Session = await this.sessionService.getSession(sessionId);
-
-    // 종료된 방이면 종료
-    if (session.isTerminated()) {
-      client.emit(EVENT_TYPE.ENDED); // 종료됐다는 이벤트 발행
-      client.disconnect();
-      return;
-    }
-
-    // 세션 구독
-    await client.join(sessionId);
-    await client.join(`${sessionId}-${memberId}`);
-
-    const clientData = client.data as { sessionId?: string; memberId?: number };
-
-    clientData.sessionId = sessionId;
-    clientData.memberId = memberId;
-
-    // 세션에 회원 추가
-    const name = await this.sessionService.addMember(
-      sessionId,
-      memberId,
-      client.id,
-    );
-
-    // 대기중인 방이 아닌 경우 재입장으로 간주하고 종료
-    if (!session.isWaiting() || !name) {
-      return;
-    }
-
-    // 회원 닉네임
-    client.emit(EVENT_TYPE.JOIN, { name, sessionId });
-
-    // 참여자 수
-    const volunteer = session.getParticipants().length;
-
-    // 방 인원 업데이트 이벤트 발행
-    this.updateSessionVolunteer(sessionId, volunteer + 1);
-
-    // 현재 사용자가 마지막 참여자가 아닐때 종료
-    const memberCount = await this.blindDateService.getMaxSessionMemberCount();
-
-    // 세션이 대기 상태면서 마지막 참여자인 경우 세션 시작
-    if (session.isWaiting() && volunteer + 1 == memberCount) {
-      await this.startSession(sessionId);
-    }
-  }
-
-  async startSession(sessionId: string) {
-    this.emitStartEvent(sessionId); // 과팅 시작 이벤트 발행
-    await this.sessionService.start(sessionId);
-    this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
-
-    // 시작 전 안내 멘트 전송
-    const messages = this.blindDateMessage.getStartMessage();
-    for (const message of messages) {
-      this.server
-        .to(sessionId)
-        .emit(
-          EVENT_TYPE.SYSTEM,
-          new Broadcast(message, 0, '동냥이', new Date()),
-        );
-
-      await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-    }
-
-    // 시간별로 이벤트 메시지 전송
-    await this.sendEventMessage(sessionId);
-
-    const participants = await this.sessionService.getAllMembers(sessionId);
-    this.server.to(sessionId).emit('participants', participants);
-
-    // 10초 선택시간 + 2초간 늦은 요청 처리를 위해 대기
-    await new Promise<void>((resolve) => setTimeout(resolve, 12000));
-
-    const notMatchedMember = await this.sessionService.getNotMatched(sessionId);
-
-    if (notMatchedMember.length > 0) {
-      const notMatchedMemberSocketRooms = notMatchedMember.map(
-        (memberId) => `${sessionId}-${memberId}`,
-      );
-
-      this.server.to(notMatchedMemberSocketRooms).emit('failed');
-    }
-
-    await this.sessionService.terminate(sessionId);
+    await this.queueProducer.pushEnterQueue({ memberId, socketId: client.id });
   }
 
   async handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
 
-    const { sessionId, memberId } = client.data as {
-      sessionId?: string;
+    const { memberId } = client.data as {
       memberId?: number;
     };
 
-    if (!sessionId || !memberId) {
-      console.error(`Missing sessionId or memberId for client: ${client.id}`);
+    if (!memberId) {
+      console.error(`Missing memberId for client: ${client.id}`);
       return;
     }
 
-    const volunteer = await this.sessionService.leave(sessionId, memberId);
-    this.updateSessionVolunteer(sessionId, volunteer);
+    await this.queueProducer.pushLeaveQueue({ memberId, socketId: client.id });
   }
 
   @SubscribeMessage('message')
@@ -211,58 +120,11 @@ export class BlindDateGateway
       `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
     );
 
-    const createdRoomId = await this.blindDateService.choice(data);
-    if (createdRoomId === null || createdRoomId === undefined) {
-      return;
-    }
-
-    this.server
-      .to(`${data.sessionId}-${data.choicerId}`)
-      .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-    this.server
-      .to(`${data.sessionId}-${data.targetId}`)
-      .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
-  }
-
-  private async sendEventMessage(sessionId: string) {
-    for (const message of this.blindDateMessage.getEventMessage(
-      this.EVENT_MESSAGE_AMOUNT,
-    )) {
-      this.server.to(sessionId).emit(EVENT_TYPE.FREEZE);
-      this.server
-        .to(sessionId)
-        .emit(
-          EVENT_TYPE.SYSTEM,
-          new Broadcast(message, 0, '동냥이', new Date()),
-        );
-
-      // 메시지 전달 후 채팅 활성화
-      await new Promise<void>((resolve) => {
-        setTimeout(() => {
-          this.server.to(sessionId).emit(EVENT_TYPE.THAW);
-          resolve();
-        }, 5000); // 5초 후 시작
-      });
-
-      // 사용자 채팅 시간 주기
-      await new Promise<void>((resolve) => {
-        setTimeout(() => {
-          resolve();
-        }, 180000); // 3분
-      });
-    }
-  }
-
-  private emitStartEvent(sessionId: string) {
-    this.server.to(sessionId).emit(EVENT_TYPE.START, {
-      sessionId,
-    });
-  }
-
-  private updateSessionVolunteer(sessionId: string, volunteer: number): void {
-    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, {
-      sessionId,
-      volunteer,
+    await this.queueProducer.pushChoiceQueue({
+      sessionId: data.sessionId,
+      memberId: data.choicerId,
+      targetId: data.targetId,
+      socketId: client.id,
     });
   }
 }
