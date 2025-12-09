@@ -102,7 +102,7 @@ export class SessionRepository {
       1,
     );
 
-    const name = `익명${nameCount}`;
+    const name = `익명${nameCount - 1}`;
 
     await this.redisClient
       .multi()
