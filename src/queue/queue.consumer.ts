@@ -83,8 +83,6 @@ export class QueueConsumer {
     const { sessionId, joinStatus } =
       await this.blindDateService.assignSession(memberId);
 
-    console.log(sessionId + '::' + joinStatus);
-
     const volunteer =
       (await this.sessionService.addMember(sessionId, memberId, socketId)) || 0;
 
@@ -239,8 +237,7 @@ export class QueueConsumer {
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           resolve();
-        }, 1); // 1초
-        // }, 180000); // 3분
+        }, 180000); // 3분
       });
     }
   }
