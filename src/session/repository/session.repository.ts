@@ -165,7 +165,7 @@ export class SessionRepository {
     );
 
     if (alreadyChoice) {
-      return;
+      return false;
     }
 
     // 선택자 저장
@@ -182,7 +182,7 @@ export class SessionRepository {
     );
 
     if (!targetsPick || targetsPick !== choicerId.toString()) {
-      return;
+      return false;
     }
 
     // 매칭 성사되었을 때
@@ -195,6 +195,8 @@ export class SessionRepository {
     console.log(
       `matching success ! choicer: ${choicerId} / target: ${targetId}`,
     );
+
+    return true;
   }
 
   public async getAllMembers(sessionId: string): Promise<number[]> {

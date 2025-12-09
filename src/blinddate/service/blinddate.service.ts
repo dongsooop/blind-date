@@ -122,7 +122,6 @@ export class BlindDateService implements IBlindDateService {
     }
 
     // 매칭 성공 시
-    console.log(`matching success! ${choicerId} + ${targetId}`);
     const response = await this.requestToCreateChatRoom(choicerId, targetId);
 
     const createdRoomId: string = (response.data as { roomId: string }).roomId;

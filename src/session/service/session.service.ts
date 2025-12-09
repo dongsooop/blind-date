@@ -12,15 +12,12 @@ export class SessionService {
     await this.sessionRepository.terminate(sessionId);
   }
 
-  public async choice(sessionId: string, choicerId: number, targetId: number) {
+  public choice(sessionId: string, choicerId: number, targetId: number) {
     if (sessionId === null) {
       throw new SessionIdNotFoundException();
     }
 
-    return (
-      (await this.sessionRepository.choice(sessionId, choicerId, targetId)) ??
-      false
-    );
+    return this.sessionRepository.choice(sessionId, choicerId, targetId);
   }
 
   public async getName(sessionId: string, memberId: number) {
