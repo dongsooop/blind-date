@@ -33,9 +33,9 @@ export class QueueConsumer {
     private readonly blindDateMessage: BlindDateMessage,
   ) {}
 
-  public initServer(server: Server) {
+  public async initServer(server: Server) {
     this.server = server;
-    this.start();
+    await this.start();
   }
 
   private async start() {
@@ -241,7 +241,8 @@ export class QueueConsumer {
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           resolve();
-        }, 180000); // 3분
+        }, 10000); // 10초
+        // }, 180000); // 3분
       });
     }
   }
