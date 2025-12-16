@@ -37,7 +37,8 @@ export class SessionService {
       throw new SessionIdNotFoundException();
     }
 
-    return this.sessionRepository.leave(sessionId, memberId);
+    const volunteer = await this.sessionRepository.leave(sessionId, memberId);
+    return { sessionId, volunteer };
   }
 
   public getNotMatched(sessionId: string) {

@@ -138,7 +138,16 @@ export class QueueConsumer {
   }
 
   private async handleLeave(memberId: number) {
-    await this.sessionService.leave(memberId);
+    const { sessionId, volunteer } = await this.sessionService.leave(memberId);
+    if (!volunteer || !sessionId) {
+      console.error('Member session or volunteer does not exist');
+      return;
+    }
+
+    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, {
+      sessionId,
+      volunteer,
+    });
   }
 
   private async handleChoice(
