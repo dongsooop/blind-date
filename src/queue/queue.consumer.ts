@@ -33,9 +33,9 @@ export class QueueConsumer {
     private readonly blindDateMessage: BlindDateMessage,
   ) {}
 
-  public async initServer(server: Server) {
+  public initServer(server: Server) {
     this.server = server;
-    await this.start();
+    void this.start();
   }
 
   private async start() {
@@ -44,16 +44,17 @@ export class QueueConsumer {
     const subscriber = this.redisClient.duplicate();
     await subscriber.connect();
 
-    await subscriber.subscribe('blinddate:queue:signal', async () => {
-      while (true) {
-        const job = await this.redisClient.rPop('blinddate:queue');
-        if (!job) {
-          // 더 이상 처리할 게 없으면 중단
-          break;
+    while (true) {
+      try {
+        const queue = await subscriber.brPop('blinddate:queue', 0);
+        if (!queue?.element) {
+          continue;
         }
-        await this.process(JSON.parse(job) as JobType);
+        await this.process(JSON.parse(queue.element) as JobType);
+      } catch (e) {
+        console.error(e);
       }
-    });
+    }
   }
 
   private async process(job: JobType) {

@@ -40,9 +40,9 @@ export class BlindDateGateway
     private readonly queueConsumer: QueueConsumer,
   ) {}
 
-  async afterInit() {
+  afterInit() {
     console.log('WebSocket Gateway Initialized');
-    await this.queueConsumer.initServer(this.server);
+    this.queueConsumer.initServer(this.server);
   }
 
   /**
