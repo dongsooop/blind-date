@@ -64,7 +64,7 @@ export class QueueConsumer {
         return this.handleEnter(job.memberId, job.socketId);
 
       case BlindDateQueue.LEAVE:
-        return this.handleLeave(job.memberId);
+        return this.handleLeave(job.socketId);
 
       case BlindDateQueue.CHOICE:
         if (!job.sessionId) {
@@ -138,10 +138,25 @@ export class QueueConsumer {
     }
   }
 
-  private async handleLeave(memberId: number) {
-    const { sessionId, volunteer } = await this.sessionService.leave(memberId);
-    if (!volunteer || !sessionId) {
-      console.error('Member session or volunteer does not exist');
+  private async handleLeave(socketId: string) {
+    const sockets = await this.server.fetchSockets();
+    const socket = sockets.find((s) => s.id === socketId);
+    if (!socket) {
+      console.error('Handle leave error for Socket not found');
+      return;
+    }
+
+    const clientData = socket.data as { sessionId?: string; memberId?: number };
+    const memberId = clientData.memberId;
+    const sessionId = clientData.sessionId;
+    if (!memberId || !sessionId) {
+      console.error('Handle leave error for Member Id or Session Id not found');
+      return;
+    }
+
+    const volunteer = await this.sessionService.leave(sessionId, memberId);
+    if (!volunteer) {
+      console.error('volunteer does not exist');
       return;
     }
 

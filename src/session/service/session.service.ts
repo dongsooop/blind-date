@@ -29,10 +29,7 @@ export class SessionService {
     return name;
   }
 
-  public async leave(memberId: number) {
-    const sessionId =
-      await this.sessionRepository.getSessionIdByMemberId(memberId);
-
+  public async leave(sessionId: string, memberId: number) {
     if (sessionId === null) {
       throw new SessionIdNotFoundException();
     }

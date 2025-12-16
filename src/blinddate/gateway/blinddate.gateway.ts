@@ -71,16 +71,9 @@ export class BlindDateGateway
   async handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
 
-    const { memberId } = client.data as {
-      memberId?: number;
-    };
-
-    if (!memberId) {
-      console.error(`Missing memberId for client: ${client.id}`);
-      return;
-    }
-
-    await this.queueProducer.pushLeaveQueue({ memberId, socketId: client.id });
+    await this.queueProducer.pushLeaveQueue({
+      socketId: client.id,
+    });
   }
 
   @SubscribeMessage('message')
