@@ -30,12 +30,12 @@ export class SessionService {
     return name;
   }
 
-  public leave(sessionId: string, memberId: number) {
+  public leave(sessionId: string, memberId: number, socketId: string) {
     if (sessionId === null) {
       throw new SessionIdNotFoundException();
     }
 
-    return this.sessionRepository.leave(sessionId, memberId);
+    return this.sessionRepository.leave(sessionId, memberId, socketId);
   }
 
   public getNotMatched(sessionId: string) {

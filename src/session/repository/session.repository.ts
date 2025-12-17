@@ -41,7 +41,7 @@ export class SessionRepository {
     return sessionId;
   }
 
-  public async leave(sessionId: string, memberId: number) {
+  public async leave(sessionId: string, memberId: number, socketId: string) {
     const participantsKey = SessionKeyFactory.getParticipantsKey(sessionId);
     const memberKey = SessionKeyFactory.getMemberKey(memberId);
     const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
@@ -57,7 +57,7 @@ export class SessionRepository {
     // 세션 대기 상태인 경우 퇴장 처리
     console.log(`Client out of session: ${sessionId}`);
 
-    const memberSocketKey = `${this.REDIS_KEY_PREFIX}-${sessionId}-${memberId}`;
+    const memberSocketKey = SessionKeyFactory.getMemberSocketKey(memberId);
     const socketAmount = await this.redisClient.sCard(memberSocketKey);
     const volunteer = await this.redisClient.sCard(participantsKey);
 
@@ -66,7 +66,7 @@ export class SessionRepository {
       console.log(
         `Client already joined. sessionId: ${sessionId}, memberId: ${memberId}}`,
       );
-      await this.redisClient.sRem(memberSocketKey, memberId.toString());
+      await this.redisClient.sRem(memberSocketKey, socketId);
 
       return volunteer;
     }
@@ -74,7 +74,7 @@ export class SessionRepository {
     // 하나의 디바이스로 접근중인 경우
     await this.redisClient
       .multi()
-      .sRem(memberSocketKey, memberId.toString())
+      .sRem(memberSocketKey, socketId)
       .sRem(participantsKey, memberId.toString()) // 참가자 목록에서 회원 정보 제거
       .hDel(memberKey, 'session') // 회원의 세션 정보 초기화
       .exec();

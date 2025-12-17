@@ -66,7 +66,7 @@ export class QueueConsumer {
         return this.handleEnter(job.socketId);
 
       case BlindDateQueue.LEAVE:
-        return this.handleLeave(job.memberId, job.sessionId);
+        return this.handleLeave(job.memberId, job.sessionId, job.socketId);
 
       case BlindDateQueue.CHOICE:
         if (!job.sessionId) {
@@ -155,13 +155,21 @@ export class QueueConsumer {
     }
   }
 
-  private async handleLeave(memberId: number, sessionId: string | null) {
+  private async handleLeave(
+    memberId: number,
+    sessionId: string | null,
+    socketId: string,
+  ) {
     if (!sessionId) {
       console.log(`[QueueConsumer] Unknown Session Id is null`);
       return;
     }
 
-    const volunteer = await this.sessionService.leave(sessionId, memberId);
+    const volunteer = await this.sessionService.leave(
+      sessionId,
+      memberId,
+      socketId,
+    );
     if (!volunteer) {
       console.error('volunteer does not exist');
       return;

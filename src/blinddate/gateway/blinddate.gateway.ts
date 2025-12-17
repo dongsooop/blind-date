@@ -70,6 +70,7 @@ export class BlindDateGateway
     await this.queueProducer.pushLeaveQueue({
       memberId,
       sessionId,
+      socketId: client.id,
     });
   }
 
