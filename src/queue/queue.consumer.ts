@@ -165,10 +165,7 @@ export class QueueConsumer {
       return;
     }
 
-    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, {
-      sessionId,
-      volunteer,
-    });
+    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, volunteer);
   }
 
   private async handleChoice(
@@ -195,10 +192,7 @@ export class QueueConsumer {
   }
 
   private updateSessionVolunteer(sessionId: string, volunteer: number): void {
-    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, {
-      sessionId,
-      volunteer,
-    });
+    this.server.to(sessionId).emit(EVENT_TYPE.JOINED, volunteer);
   }
 
   private async startSession(sessionId: string) {
