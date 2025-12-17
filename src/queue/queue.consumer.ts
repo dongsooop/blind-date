@@ -10,6 +10,7 @@ import { Broadcast } from '@/blinddate/constant/Broadcast';
 import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 import { JoinStatus } from '@/blinddate/constant/join.type';
 import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
+import { SESSION_STATE } from '@/session/const/session.constant';
 
 type JobType = {
   type: BlindDateQueueType;
@@ -110,13 +111,7 @@ export class QueueConsumer {
       socketId,
     );
 
-    if (!result) {
-      console.log(`member(${memberId}) joined with new device!`);
-    }
-
-    if (result) {
-      console.log(`member(${memberId}) joined to session${sessionId}`);
-    }
+    console.log(`member(${memberId}) joined to session${sessionId}`);
 
     // 세션 구독
     socket.join(sessionId);
@@ -135,14 +130,18 @@ export class QueueConsumer {
     clientData.sessionId = sessionId;
     clientData.memberId = memberId;
 
-    if (joinStatus === JoinStatus.DUPLICATE || !result) {
+    socket.emit(EVENT_TYPE.JOIN, {
+      name: result.name,
+      state: SESSION_STATE.WAITING,
+    });
+
+    if (joinStatus === JoinStatus.DUPLICATE) {
+      this.updateSessionVolunteer(socket.id, result.volunteer);
       return;
     }
 
     // 방 인원 업데이트 이벤트 발행
     this.updateSessionVolunteer(sessionId, result.volunteer);
-
-    socket.emit(EVENT_TYPE.JOIN, { name: result.name, sessionId });
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
     const maxMemberCount =

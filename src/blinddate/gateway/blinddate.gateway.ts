@@ -77,19 +77,22 @@ export class BlindDateGateway
   async handleMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody()
-    data: { sessionId: string; message: string; senderId: number },
+    data: { message: string; senderId: number },
   ) {
     console.log(
       `${new Date().toISOString()}: Received message from client: ${client.id}`,
     );
 
-    const name = await this.sessionService.getName(
-      data.sessionId,
-      data.senderId,
-    );
+    const { sessionId } = client.data as { sessionId: string | null };
+    if (!sessionId) {
+      console.error(`Member data not found for ${client.id}`);
+      return;
+    }
+
+    const name = await this.sessionService.getName(sessionId, data.senderId);
 
     this.server
-      .to(data.sessionId)
+      .to(sessionId)
       .emit(
         EVENT_TYPE.BROADCAST,
         new Broadcast(data.message, data.senderId, name, new Date()),
@@ -101,7 +104,6 @@ export class BlindDateGateway
     @ConnectedSocket() client: Socket,
     @MessageBody()
     data: {
-      sessionId: string;
       choicerId: number;
       targetId: number;
     },
@@ -110,9 +112,18 @@ export class BlindDateGateway
       `Received choice from client: ${data.choicerId}, and targetId: ${data.targetId}`,
     );
 
+    const { sessionId, memberId } = client.data as {
+      sessionId: string | null;
+      memberId: number | null;
+    };
+    if (!sessionId || !memberId) {
+      console.error(`Member data not found for ${client.id}`);
+      return;
+    }
+
     await this.queueProducer.pushChoiceQueue({
-      sessionId: data.sessionId,
-      memberId: data.choicerId,
+      sessionId,
+      memberId,
       targetId: data.targetId,
       socketId: client.id,
     });

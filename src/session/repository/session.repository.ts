@@ -10,6 +10,7 @@ import Session from '@/session/entity/session.entity';
 import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import { Participant } from '@/session/participant.entity';
+import { MemberNameNotFoundException } from '@/session/exception/MemberNameNotFoundException';
 
 @Injectable()
 export class SessionRepository {
@@ -98,7 +99,14 @@ export class SessionRepository {
         `Client already connected. sessionId: ${sessionId}, memberId: ${memberId}`,
       );
       await this.redisClient.sAdd(memberSocketKey, socketId);
-      return null;
+
+      const name = await this.redisClient.hGet(memberKey, 'name');
+      if (!name) {
+        throw new MemberNameNotFoundException();
+      }
+
+      const volunteer = await this.redisClient.sCard(participantsKey);
+      return { volunteer, name };
     }
 
     // 이름 할당
