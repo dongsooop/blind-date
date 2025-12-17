@@ -29,13 +29,12 @@ export class SessionService {
     return name;
   }
 
-  public async leave(sessionId: string, memberId: number) {
+  public leave(sessionId: string, memberId: number) {
     if (sessionId === null) {
       throw new SessionIdNotFoundException();
     }
 
-    const volunteer = await this.sessionRepository.leave(sessionId, memberId);
-    return { sessionId, volunteer };
+    return this.sessionRepository.leave(sessionId, memberId);
   }
 
   public getNotMatched(sessionId: string) {
