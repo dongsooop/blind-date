@@ -52,20 +52,7 @@ export class BlindDateGateway
   async handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
 
-    const isAvailable = await this.blindDateService.isAvailable();
-    if (!isAvailable) {
-      console.log(`Blinddate service not available. Request By: ${client.id}`);
-      client.disconnect();
-      return;
-    }
-
-    // 회원 ID
-    const memberId = Number(client.handshake.query.memberId);
-    if (isNaN(memberId)) {
-      throw new MemberIdNotAvailableException();
-    }
-
-    await this.queueProducer.pushEnterQueue({ memberId, socketId: client.id });
+    await this.queueProducer.pushEnterQueue({ socketId: client.id });
   }
 
   async handleDisconnect(client: Socket) {

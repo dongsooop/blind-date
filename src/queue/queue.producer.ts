@@ -9,7 +9,7 @@ export class QueueProducer {
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
   ) {}
 
-  async pushEnterQueue(data: { memberId: number; socketId: string }) {
+  async pushEnterQueue(data: { socketId: string }) {
     const json = JSON.stringify({
       type: BlindDateQueue.ENTER,
       timestamp: Date.now(),

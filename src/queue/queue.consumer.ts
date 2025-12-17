@@ -9,6 +9,7 @@ import { EVENT_TYPE } from '@/blinddate/constant/blinddate.event.type';
 import { Broadcast } from '@/blinddate/constant/Broadcast';
 import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 import { JoinStatus } from '@/blinddate/constant/join.type';
+import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
 
 type JobType = {
   type: BlindDateQueueType;
@@ -61,7 +62,7 @@ export class QueueConsumer {
     console.log(job);
     switch (job.type) {
       case BlindDateQueue.ENTER:
-        return this.handleEnter(job.memberId, job.socketId);
+        return this.handleEnter(job.socketId);
 
       case BlindDateQueue.LEAVE:
         return this.handleLeave(job.socketId);
@@ -80,7 +81,26 @@ export class QueueConsumer {
     }
   }
 
-  private async handleEnter(memberId: number, socketId: string) {
+  private async handleEnter(socketId: string) {
+    const sockets = await this.server.fetchSockets();
+    const socket = sockets.find((s) => s.id === socketId);
+    if (!socket) {
+      return;
+    }
+
+    const isAvailable = await this.blindDateService.isAvailable();
+    if (!isAvailable) {
+      console.log(`Blinddate service not available. Request By: ${socketId}`);
+      socket.disconnect();
+      return;
+    }
+
+    // 회원 ID
+    const memberId = Number(socket.handshake.query.memberId);
+    if (isNaN(memberId)) {
+      throw new MemberIdNotAvailableException();
+    }
+
     const { sessionId, joinStatus } =
       await this.blindDateService.assignSession(memberId);
 
@@ -100,11 +120,6 @@ export class QueueConsumer {
     console.log(`member(${memberId}) joined to session${sessionId}`);
 
     // 세션 구독
-    const sockets = await this.server.fetchSockets();
-    const socket = sockets.find((s) => s.id === socketId);
-    if (!socket) {
-      return;
-    }
     socket.join(sessionId);
     socket.join(`${this.REDIS_KEY_PREFIX}-${sessionId}-${memberId}`);
 
