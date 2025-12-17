@@ -117,7 +117,9 @@ export class QueueConsumer {
     socket.join(sessionId);
     socket.join(`${this.REDIS_KEY_PREFIX}-${sessionId}-${memberId}`);
 
-    if (await this.sessionService.isSessionTerminated(sessionId)) {
+    const sessionState = await this.sessionService.getSessionState(sessionId);
+
+    if (sessionState === SESSION_STATE.ENDED) {
       console.log(
         `disconnected session for ended session ${sessionId} by ${memberId}`,
       );
@@ -132,7 +134,7 @@ export class QueueConsumer {
 
     socket.emit(EVENT_TYPE.JOIN, {
       name: result.name,
-      state: SESSION_STATE.WAITING,
+      state: sessionState,
     });
 
     if (joinStatus === JoinStatus.DUPLICATE) {

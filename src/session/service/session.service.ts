@@ -3,6 +3,7 @@ import { SessionRepository } from '@/session/repository/session.repository';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
 import { SESSION_STATE } from '@/session/const/session.constant';
 import { SessionKeyFactory } from '@/session/repository/session-key.factory';
+import { SessionStateNotFoundException } from '@/session/exception/SessionStateNotFoundException';
 
 @Injectable()
 export class SessionService {
@@ -53,9 +54,14 @@ export class SessionService {
     return this.sessionRepository.addMember(sessionId, memberId, socketId);
   }
 
-  public async isSessionTerminated(sessionId: string) {
+  public async getSessionState(sessionId: string) {
     const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
     const status = await this.sessionRepository.getSessionStatus(sessionKey);
-    return !status || status === SESSION_STATE.ENDED;
+
+    if (!status) {
+      throw new SessionStateNotFoundException();
+    }
+
+    return status;
   }
 }
