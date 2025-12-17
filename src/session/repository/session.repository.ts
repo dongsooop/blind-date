@@ -62,6 +62,9 @@ export class SessionRepository {
 
     // 여러 디바이스로 접근중인 경우
     if (socketAmount > 1) {
+      console.log(
+        `Client already joined. sessionId: ${sessionId}, memberId: ${memberId}}`,
+      );
       await this.redisClient.sRem(memberSocketKey, memberId.toString());
 
       return volunteer;
@@ -91,6 +94,9 @@ export class SessionRepository {
 
     // 이미 존재하는 회원이면 종료
     if (await this.redisClient.sIsMember(participantsKey, String(memberId))) {
+      console.log(
+        `Client already connected. sessionId: ${sessionId}, memberId: ${memberId}`,
+      );
       await this.redisClient.sAdd(memberSocketKey, socketId);
       return null;
     }

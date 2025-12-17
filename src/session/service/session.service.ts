@@ -50,16 +50,8 @@ export class SessionService {
     await this.sessionRepository.start(sessionId);
   }
 
-  public async addMember(
-    sessionId: string,
-    memberId: number,
-    socketId: string,
-  ) {
-    return await this.sessionRepository.addMember(
-      sessionId,
-      memberId,
-      socketId,
-    );
+  public addMember(sessionId: string, memberId: number, socketId: string) {
+    return this.sessionRepository.addMember(sessionId, memberId, socketId);
   }
 
   public async isSessionTerminated(sessionId: string) {

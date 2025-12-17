@@ -20,7 +20,7 @@ export class QueueProducer {
     await this.redisClient.publish('blinddate:queue:signal', 'new');
   }
 
-  async pushLeaveQueue(data: { socketId: string }) {
+  async pushLeaveQueue(data: { memberId: number; sessionId: string }) {
     await this.redisClient.lPush(
       'blinddate:queue',
       JSON.stringify({
