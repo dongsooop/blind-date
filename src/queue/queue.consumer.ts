@@ -111,13 +111,12 @@ export class QueueConsumer {
     );
 
     if (!result) {
-      console.error(
-        '[QueueConsumer] Unknown sessionId or volunteerId is not set',
-      );
-      return;
+      console.log(`member(${memberId}) joined with new device!`);
     }
 
-    console.log(`member(${memberId}) joined to session${sessionId}`);
+    if (result) {
+      console.log(`member(${memberId}) joined to session${sessionId}`);
+    }
 
     // 세션 구독
     socket.join(sessionId);
@@ -136,11 +135,13 @@ export class QueueConsumer {
     clientData.sessionId = sessionId;
     clientData.memberId = memberId;
 
-    if (joinStatus === JoinStatus.DUPLICATE) {
+    if (joinStatus === JoinStatus.DUPLICATE || !result) {
       return;
     }
+
     // 방 인원 업데이트 이벤트 발행
     this.updateSessionVolunteer(sessionId, result.volunteer);
+
     socket.emit(EVENT_TYPE.JOIN, { name: result.name, sessionId });
 
     // 현재 사용자가 마지막 참여자가 아닐때 종료
