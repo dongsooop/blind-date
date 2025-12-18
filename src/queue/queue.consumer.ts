@@ -27,6 +27,15 @@ export class QueueConsumer {
 
   private readonly EVENT_MESSAGE_AMOUNT = 3;
   private readonly REDIS_KEY_PREFIX = 'blinddate';
+  private readonly CHOICE_TIME = Number(process.env.CHOICE_TIME) || 10 * 1000;
+  private readonly START_MESSAGE_DELAY =
+    Number(process.env.START_MESSAGE_DELAY) || 2000;
+  private readonly CHATTING_TIME =
+    Number(process.env.CHATTING_TIME) || 3 * 60 * 1000;
+  private readonly MESSAGE_WAITING_TIME =
+    Number(process.env.MESSAGE_WAITING_TIME) || 4 * 1000;
+  private readonly SESSION_MANAGER_NAME =
+    process.env.SESSION_MANAGER_NAME || '동냥이';
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
@@ -37,7 +46,9 @@ export class QueueConsumer {
 
   public initServer(server: Server) {
     this.server = server;
-    void this.start();
+    this.start().catch((err: Error) => {
+      console.error(`Failed to start Queue Consumer`, err);
+    });
   }
 
   private async start() {
@@ -151,7 +162,10 @@ export class QueueConsumer {
 
     // 세션이 대기 상태면서 마지막 참여자인 경우 세션 시작
     if (result.volunteer == maxMemberCount) {
-      this.startSession(sessionId);
+      console.log(`Session ${sessionId} start by member: ${memberId}`);
+      this.startSession(sessionId).catch((err) => {
+        console.error(`An error occurred during the session`, err);
+      });
     }
   }
 
@@ -217,20 +231,22 @@ export class QueueConsumer {
         .to(sessionId)
         .emit(
           EVENT_TYPE.SYSTEM,
-          new Broadcast(message, 0, '동냥이', new Date()),
+          new Broadcast(message, 0, this.SESSION_MANAGER_NAME, new Date()),
         );
 
-      await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, this.START_MESSAGE_DELAY),
+      );
     }
 
     // 시간별로 이벤트 메시지 전송
     await this.sendEventMessage(sessionId);
 
     const participants = await this.sessionService.getAllMembers(sessionId);
-    this.server.to(sessionId).emit('participants', participants);
+    this.server.to(sessionId).emit(EVENT_TYPE.PARTICIPANTS, participants);
 
-    // 10초 선택시간 + 2초간 늦은 요청 처리를 위해 대기
-    await new Promise<void>((resolve) => setTimeout(resolve, 12000));
+    // 사랑의 막대기 선택시간 대기
+    await new Promise<void>((resolve) => setTimeout(resolve, this.CHOICE_TIME));
 
     const notMatchedMember = await this.sessionService.getNotMatched(sessionId);
 
@@ -239,7 +255,7 @@ export class QueueConsumer {
         (memberId) => `${this.REDIS_KEY_PREFIX}-${sessionId}-${memberId}`,
       );
 
-      this.server.to(notMatchedMemberSocketRooms).emit('failed');
+      this.server.to(notMatchedMemberSocketRooms).emit(EVENT_TYPE.FAILED);
     }
 
     await this.sessionService.terminate(sessionId);
@@ -260,7 +276,7 @@ export class QueueConsumer {
         .to(sessionId)
         .emit(
           EVENT_TYPE.SYSTEM,
-          new Broadcast(message, 0, '동냥이', new Date()),
+          new Broadcast(message, 0, this.SESSION_MANAGER_NAME, new Date()),
         );
 
       // 메시지 전달 후 채팅 활성화
@@ -268,15 +284,14 @@ export class QueueConsumer {
         setTimeout(() => {
           this.server.to(sessionId).emit(EVENT_TYPE.THAW);
           resolve();
-        }, 5000); // 5초 후 시작
+        }, this.MESSAGE_WAITING_TIME);
       });
 
       // 사용자 채팅 시간 주기
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           resolve();
-        }, 10000); // 10초
-        // }, 180000); // 3분
+        }, this.CHATTING_TIME);
       });
     }
   }
