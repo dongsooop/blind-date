@@ -9,7 +9,6 @@ import {
 import Session from '@/session/entity/session.entity';
 import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
-import { Participant } from '@/session/participant.entity';
 import { MemberNameNotFoundException } from '@/session/exception/MemberNameNotFoundException';
 
 @Injectable()
@@ -133,11 +132,6 @@ export class SessionRepository {
 
     const lastVolunteer = await this.redisClient.sCard(participantsKey);
     return { volunteer: lastVolunteer, name };
-  }
-
-  public getSocketIdsByMember(memberId: number) {
-    const memberSocketKey = SessionKeyFactory.getMemberSocketKey(memberId);
-    return this.redisClient.sMembers(memberSocketKey);
   }
 
   public async getParticipantsIdAndName(sessionId: string) {
@@ -277,29 +271,6 @@ export class SessionRepository {
 
   public getSessionStatus(sessionId: string) {
     return this.redisClient.hGet(sessionId, this.STATE_KEY_NAME);
-  }
-
-  private parsedParticipants(participantsRaw: string): Participant[] {
-    const participantsParsed: {
-      memberId: string;
-      socketId: string[];
-      name: string;
-    }[] = participantsRaw
-      ? (JSON.parse(participantsRaw) as {
-          memberId: string;
-          socketId: string[];
-          name: string;
-        }[])
-      : [];
-
-    return participantsParsed.map(
-      (participant) =>
-        new Participant(
-          Number(participant.memberId),
-          participant.socketId,
-          participant.name,
-        ),
-    );
   }
 
   private getSessionData(sessionId: string) {

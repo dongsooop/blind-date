@@ -11,7 +11,6 @@ import {
 import { Server, Socket } from 'socket.io';
 import { EVENT_TYPE } from '@/blinddate/constant/blinddate.event.type';
 import { Broadcast } from '@/blinddate/constant/Broadcast';
-import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
 import { CustomWsExceptionFilter } from '@/exception-filter/websocket.exception.filter';
 import { UseFilters } from '@nestjs/common';

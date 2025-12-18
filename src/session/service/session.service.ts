@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SessionRepository } from '@/session/repository/session.repository';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
-import { SESSION_STATE } from '@/session/const/session.constant';
 import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 import { SessionStateNotFoundException } from '@/session/exception/SessionStateNotFoundException';
 
