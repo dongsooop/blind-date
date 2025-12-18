@@ -5,6 +5,11 @@ import { BlindDateQueue } from '@/queue/blinddate.queue';
 
 @Injectable()
 export class QueueProducer {
+  private readonly SESSION_QUEUE_KEY =
+    process.env.SESSION_QUEUE_KEY || 'blinddate-session-queue';
+  private readonly CHOICE_QUEUE_KEY =
+    process.env.CHOICE_QUEUE_KEY || 'blinddate-choice-queue';
+
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
   ) {}
@@ -16,8 +21,7 @@ export class QueueProducer {
       ...data,
     });
 
-    await this.redisClient.lPush('blinddate:queue', json);
-    await this.redisClient.publish('blinddate:queue:signal', 'new');
+    await this.redisClient.lPush(this.SESSION_QUEUE_KEY, json);
   }
 
   async pushLeaveQueue(data: {
@@ -25,15 +29,13 @@ export class QueueProducer {
     sessionId: string;
     socketId: string;
   }) {
-    await this.redisClient.lPush(
-      'blinddate:queue',
-      JSON.stringify({
-        type: BlindDateQueue.LEAVE,
-        timestamp: Date.now(),
-        ...data,
-      }),
-    );
-    await this.redisClient.publish('blinddate:queue:signal', 'new');
+    const json = JSON.stringify({
+      type: BlindDateQueue.LEAVE,
+      timestamp: Date.now(),
+      ...data,
+    });
+
+    await this.redisClient.lPush(this.SESSION_QUEUE_KEY, json);
   }
 
   async pushChoiceQueue(data: {
@@ -42,14 +44,12 @@ export class QueueProducer {
     socketId: string;
     targetId: number;
   }) {
-    await this.redisClient.lPush(
-      'blinddate:queue',
-      JSON.stringify({
-        type: BlindDateQueue.CHOICE,
-        timestamp: Date.now(),
-        ...data,
-      }),
-    );
-    await this.redisClient.publish('blinddate:queue:signal', 'new');
+    const json = JSON.stringify({
+      type: BlindDateQueue.CHOICE,
+      timestamp: Date.now(),
+      ...data,
+    });
+
+    await this.redisClient.lPush(this.CHOICE_QUEUE_KEY, json);
   }
 }

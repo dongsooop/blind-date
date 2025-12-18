@@ -24,6 +24,8 @@ type JobType = {
 @Injectable()
 export class QueueConsumer {
   private server: Server;
+  private subscriber: RedisClientType;
+  private signal: AbortSignal;
 
   private readonly EVENT_MESSAGE_AMOUNT = 3;
   private readonly REDIS_KEY_PREFIX = 'blinddate';
@@ -36,6 +38,10 @@ export class QueueConsumer {
     Number(process.env.MESSAGE_WAITING_TIME) || 4 * 1000;
   private readonly SESSION_MANAGER_NAME =
     process.env.SESSION_MANAGER_NAME || '동냥이';
+  private readonly SESSION_QUEUE_KEY =
+    process.env.SESSION_QUEUE_KEY || 'blinddate-session-queue';
+  private readonly CHOICE_QUEUE_KEY =
+    process.env.CHOICE_QUEUE_KEY || 'blinddate-choice-queue';
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
@@ -44,22 +50,46 @@ export class QueueConsumer {
     private readonly blindDateMessage: BlindDateMessage,
   ) {}
 
-  public initServer(server: Server) {
+  public async initServer(server: Server) {
     this.server = server;
-    this.start().catch((err: Error) => {
-      console.error(`Failed to start Queue Consumer`, err);
+
+    this.subscriber = this.redisClient.duplicate();
+    await this.subscriber.connect();
+
+    const { signal } = new AbortController();
+    this.signal = signal;
+
+    this.startSessionQueue().catch((err: Error) => {
+      console.error(`Failed to start Session Queue Consumer`, err);
+    });
+
+    this.startChoiceQueue().catch((err: Error) => {
+      console.error(`Failed to start Choice Queue Consumer`, err);
     });
   }
 
-  private async start() {
-    console.log('[QueueConsumer] started');
+  private async startChoiceQueue() {
+    console.log('[Choice Queue] started');
 
-    const subscriber = this.redisClient.duplicate();
-    await subscriber.connect();
-
-    while (true) {
+    while (!this.signal.aborted) {
       try {
-        const queue = await subscriber.brPop('blinddate:queue', 0);
+        const queue = await this.subscriber.brPop(this.CHOICE_QUEUE_KEY, 0);
+        if (!queue?.element) {
+          continue;
+        }
+        await this.process(JSON.parse(queue.element) as JobType);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  private async startSessionQueue() {
+    console.log('[Session Queue] started');
+
+    while (!this.signal.aborted) {
+      try {
+        const queue = await this.subscriber.brPop(this.SESSION_QUEUE_KEY, 0);
         if (!queue?.element) {
           continue;
         }
