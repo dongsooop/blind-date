@@ -11,6 +11,7 @@ import { BlindDateMessage } from '@/blinddate/message/BlindDateMessage';
 import { JoinStatus } from '@/blinddate/constant/join.type';
 import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
 import { SESSION_STATE } from '@/session/const/session.constant';
+import { queueConfig } from '@/queue/queue.config';
 
 type JobType = {
   type: BlindDateQueueType;
@@ -28,20 +29,14 @@ export class QueueConsumer {
   private signal: AbortSignal;
 
   private readonly EVENT_MESSAGE_AMOUNT = 3;
-  private readonly REDIS_KEY_PREFIX = 'blinddate';
-  private readonly CHOICE_TIME = Number(process.env.CHOICE_TIME) || 10 * 1000;
-  private readonly START_MESSAGE_DELAY =
-    Number(process.env.START_MESSAGE_DELAY) || 2000;
-  private readonly CHATTING_TIME =
-    Number(process.env.CHATTING_TIME) || 3 * 60 * 1000;
-  private readonly MESSAGE_WAITING_TIME =
-    Number(process.env.MESSAGE_WAITING_TIME) || 4 * 1000;
-  private readonly SESSION_MANAGER_NAME =
-    process.env.SESSION_MANAGER_NAME || '동냥이';
-  private readonly SESSION_QUEUE_KEY =
-    process.env.SESSION_QUEUE_KEY || 'blinddate-session-queue';
-  private readonly CHOICE_QUEUE_KEY =
-    process.env.CHOICE_QUEUE_KEY || 'blinddate-choice-queue';
+  private readonly REDIS_KEY_PREFIX = queueConfig().getRedisKeyPrefix();
+  private readonly CHOICE_TIME = queueConfig().getChoiceTime();
+  private readonly START_MESSAGE_DELAY = queueConfig().getStartMessageDelay();
+  private readonly CHATTING_TIME = queueConfig().getChattingTime();
+  private readonly MESSAGE_WAITING_TIME = queueConfig().getMessageWaitingTime();
+  private readonly SESSION_MANAGER_NAME = queueConfig().getSessionManagerName();
+  private readonly SESSION_QUEUE_KEY = queueConfig().getSessionQueueKey();
+  private readonly CHOICE_QUEUE_KEY = queueConfig().getChoiceQueueKey();
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,

@@ -2,13 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { REDIS_CLIENT } from '@/redis/redis.module';
 import type { RedisClientType } from 'redis';
 import { BlindDateQueue } from '@/queue/blinddate.queue';
+import { queueConfig } from '@/queue/queue.config';
 
 @Injectable()
 export class QueueProducer {
-  private readonly SESSION_QUEUE_KEY =
-    process.env.SESSION_QUEUE_KEY || 'blinddate-session-queue';
-  private readonly CHOICE_QUEUE_KEY =
-    process.env.CHOICE_QUEUE_KEY || 'blinddate-choice-queue';
+  private readonly SESSION_QUEUE_KEY = queueConfig().getSessionQueueKey();
+  private readonly CHOICE_QUEUE_KEY = queueConfig().getChoiceQueueKey();
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
