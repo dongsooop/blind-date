@@ -25,7 +25,6 @@ type JobType = {
 @Injectable()
 export class QueueConsumer {
   private server: Server;
-  private subscriber: RedisClientType;
   private signal: AbortSignal;
 
   private readonly EVENT_MESSAGE_AMOUNT = 3;
@@ -45,11 +44,8 @@ export class QueueConsumer {
     private readonly blindDateMessage: BlindDateMessage,
   ) {}
 
-  public async initServer(server: Server) {
+  public initServer(server: Server) {
     this.server = server;
-
-    this.subscriber = this.redisClient.duplicate();
-    await this.subscriber.connect();
 
     const { signal } = new AbortController();
     this.signal = signal;
@@ -66,9 +62,12 @@ export class QueueConsumer {
   private async startChoiceQueue() {
     console.log('[Choice Queue] started');
 
+    const subscriber = this.redisClient.duplicate();
+    await subscriber.connect();
+
     while (!this.signal.aborted) {
       try {
-        const queue = await this.subscriber.brPop(this.CHOICE_QUEUE_KEY, 0);
+        const queue = await subscriber.brPop(this.CHOICE_QUEUE_KEY, 0);
         if (!queue?.element) {
           continue;
         }
@@ -82,9 +81,12 @@ export class QueueConsumer {
   private async startSessionQueue() {
     console.log('[Session Queue] started');
 
+    const subscriber = this.redisClient.duplicate();
+    await subscriber.connect();
+
     while (!this.signal.aborted) {
       try {
-        const queue = await this.subscriber.brPop(this.SESSION_QUEUE_KEY, 0);
+        const queue = await subscriber.brPop(this.SESSION_QUEUE_KEY, 0);
         if (!queue?.element) {
           continue;
         }
