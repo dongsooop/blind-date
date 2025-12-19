@@ -41,6 +41,7 @@ export const queueConfig = () => {
       return 10 * 1000;
     }
 
+    console.log(`choice time: ${choiceTime}`);
     return choiceTime;
   };
 
