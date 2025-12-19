@@ -12,6 +12,7 @@ import { JoinStatus } from '@/blinddate/constant/join.type';
 import { MemberIdNotAvailableException } from '@/blinddate/exception/MemberIdNotAvailableException';
 import { SESSION_STATE } from '@/session/const/session.constant';
 import { queueConfig } from '@/queue/queue.config';
+import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 
 type JobType = {
   type: BlindDateQueueType;
@@ -153,7 +154,7 @@ export class QueueConsumer {
 
     // 세션 구독
     socket.join(sessionId);
-    socket.join(`${this.REDIS_KEY_PREFIX}-${sessionId}-${memberId}`);
+    socket.join(SessionKeyFactory.getPersonalKeyName(sessionId, memberId));
 
     const sessionState = await this.sessionService.getSessionState(sessionId);
 
@@ -235,10 +236,10 @@ export class QueueConsumer {
     }
 
     this.server
-      .to(`${this.REDIS_KEY_PREFIX}-${sessionId}-${choicerId}`)
+      .to(SessionKeyFactory.getPersonalKeyName(sessionId, choicerId))
       .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
     this.server
-      .to(`${this.REDIS_KEY_PREFIX}-${sessionId}-${targetId}`)
+      .to(SessionKeyFactory.getPersonalKeyName(sessionId, targetId))
       .emit(EVENT_TYPE.CREATE_CHATROOM, createdRoomId);
   }
 
@@ -278,8 +279,8 @@ export class QueueConsumer {
     const notMatchedMember = await this.sessionService.getNotMatched(sessionId);
 
     if (notMatchedMember.length > 0) {
-      const notMatchedMemberSocketRooms = notMatchedMember.map(
-        (memberId) => `${this.REDIS_KEY_PREFIX}-${sessionId}-${memberId}`,
+      const notMatchedMemberSocketRooms = notMatchedMember.map((memberId) =>
+        SessionKeyFactory.getPersonalKeyName(sessionId, memberId),
       );
 
       this.server.to(notMatchedMemberSocketRooms).emit(EVENT_TYPE.FAILED);

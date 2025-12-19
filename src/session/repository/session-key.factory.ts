@@ -1,5 +1,7 @@
+import { queueConfig } from '@/queue/queue.config';
+
 export class SessionKeyFactory {
-  private static readonly PREFIX = 'blinddate';
+  private static readonly PREFIX = queueConfig().getRedisKeyPrefix();
 
   /**
    * 세션 키
@@ -58,5 +60,9 @@ export class SessionKeyFactory {
    */
   public static getSocketKey(socketId: string) {
     return `${this.PREFIX}-socket-${socketId}`;
+  }
+
+  public static getPersonalKeyName(sessionId: string, memberId: number) {
+    return `${this.PREFIX}-${sessionId}-${memberId}`;
   }
 }

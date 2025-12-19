@@ -218,6 +218,7 @@ export class SessionRepository {
   public async getNotMatched(sessionId: string) {
     const matchedKey = SessionKeyFactory.getMatchesKeyName(sessionId);
     const allMembers = await this.getAllMembers(sessionId);
+    console.log(allMembers);
 
     const matchedMemberString = await this.redisClient.sMembers(matchedKey);
 
@@ -229,6 +230,13 @@ export class SessionRepository {
       matchedMemberString.map((v: string) => Number(v)),
     );
 
+    console.log('filtered members ===========');
+    console.log(
+      allMembers.filter((memberId) => {
+        return !matchedMembers.has(memberId);
+      }),
+    );
+    console.log('==========================');
     return allMembers.filter((memberId) => {
       return !matchedMembers.has(memberId);
     });
