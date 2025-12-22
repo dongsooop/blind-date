@@ -272,9 +272,15 @@ export class QueueConsumer {
 
     const participants = await this.sessionService.getAllMembers(sessionId);
     this.server.to(sessionId).emit(EVENT_TYPE.PARTICIPANTS, participants);
+    console.log(
+      `send participants for choice event to session members: sessionId: ${sessionId}`,
+    );
+    console.log(participants);
 
     // 사랑의 막대기 선택시간 대기
+    console.log(`start choice from: ${sessionId}`);
     await new Promise<void>((resolve) => setTimeout(resolve, this.CHOICE_TIME));
+    console.log(`end choice from: ${sessionId}`);
 
     const notMatchedMember = await this.sessionService.getNotMatched(sessionId);
 
