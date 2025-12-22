@@ -230,13 +230,6 @@ export class SessionRepository {
       matchedMemberString.map((v: string) => Number(v)),
     );
 
-    console.log('filtered members ===========');
-    console.log(
-      allMembers.filter((memberId) => {
-        return !matchedMembers.has(memberId);
-      }),
-    );
-    console.log('==========================');
     return allMembers.filter((memberId) => {
       return !matchedMembers.has(memberId);
     });

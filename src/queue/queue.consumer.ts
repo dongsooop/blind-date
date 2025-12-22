@@ -278,9 +278,9 @@ export class QueueConsumer {
     console.log(participants);
 
     // 사랑의 막대기 선택시간 대기
-    console.log(`[${Date.now()}] start choice from: ${sessionId}`);
+    console.log(`start choice from: ${sessionId}`);
     await new Promise<void>((resolve) => setTimeout(resolve, this.CHOICE_TIME));
-    console.log(`[${Date.now()}] end choice from: ${sessionId}`);
+    console.log(`end choice from: ${sessionId}`);
 
     const notMatchedMember = await this.sessionService.getNotMatched(sessionId);
 
