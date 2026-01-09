@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { BlindDateService } from '@/blinddate/service/blinddate.service';
 import { BlindDateAvailableRequest } from '@/blinddate/dto/blinddate.available.dto';
-import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 
 @Controller('blinddate')
@@ -39,16 +38,5 @@ export class BlindDateController {
       request.maxSessionMemberCount,
     );
     await this.blindDateService.availableBlindDate(req);
-
-    // 과팅 알림 API 호출
-    const requestHeader = {
-      headers: { Authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
-    };
-    const url = `https://${process.env.SERVER_DOMAIN}${process.env.BLINDDATE_NOTIFICATION_API}`;
-
-    // 채팅방 생성
-    return await firstValueFrom(
-      this.httpService.post(url, null, requestHeader),
-    );
   }
 }

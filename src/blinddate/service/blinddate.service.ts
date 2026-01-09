@@ -36,6 +36,8 @@ export class BlindDateService implements IBlindDateService {
     nodeCron.schedule(expression, async () => {
       await this.blindDateRepository.closeBlindDate();
     });
+
+    await this.requestSubmitNotification();
   }
 
   public async isAvailable(): Promise<boolean> {
@@ -140,6 +142,22 @@ export class BlindDateService implements IBlindDateService {
     }
 
     return Number(memberCount);
+  }
+
+  private async requestSubmitNotification() {
+    // 과팅 알림 API 호출
+    const requestHeader = {
+      headers: { Authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
+    };
+    const url = `https://${process.env.SERVER_DOMAIN}${process.env.BLINDDATE_NOTIFICATION_API}`;
+
+    const response = await firstValueFrom(
+      this.httpService.post(url, null, requestHeader),
+    );
+
+    if (response.status !== 204) {
+      console.error('과팅 알림 API 호출에 실패했습니다.');
+    }
   }
 
   private async initPointer() {
