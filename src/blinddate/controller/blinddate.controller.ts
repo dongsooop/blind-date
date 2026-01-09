@@ -40,31 +40,15 @@ export class BlindDateController {
     );
     await this.blindDateService.availableBlindDate(req);
 
-    const servers = process.env.MAIN_SERVER_CONTAINER_NAME?.split(',');
-    if (!servers) {
-      console.error('No server configured for notification');
-      return;
-    }
+    // 과팅 알림 API 호출
+    const requestHeader = {
+      headers: { Authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
+    };
+    const url = `https://${process.env.SERVER_DOMAIN}${process.env.BLINDDATE_NOTIFICATION_API}`;
 
-    for (const server of servers) {
-      // 같은 네트워크 내 스프링 서비스로 POST 요청 (예: Docker Compose 서비스 이름 사용)
-      try {
-        const payload = {
-          expired: expired.toISOString(),
-          maxSessionMemberCount: request.maxSessionMemberCount,
-        };
-        await firstValueFrom(
-          this.httpService.post(
-            `http://${server}:8080/api/blinddate/notification`,
-            payload,
-          ),
-        );
-
-        console.log(`Notification sent to server: ${server}`);
-      } catch (e) {
-        // 실패 시 처리(로깅 등) 필요 시 추가
-        console.error('failed to send request for notification', e);
-      }
-    }
+    // 채팅방 생성
+    return await firstValueFrom(
+      this.httpService.post(url, null, requestHeader),
+    );
   }
 }
