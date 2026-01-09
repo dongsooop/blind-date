@@ -9,7 +9,7 @@ import {
 import Session from '@/session/entity/session.entity';
 import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
-import { Participant } from '@/session/participant.entity';
+import { MemberNameNotFoundException } from '@/session/exception/MemberNameNotFoundException';
 
 @Injectable()
 export class SessionRepository {
@@ -17,7 +17,7 @@ export class SessionRepository {
   private readonly BLINDDATE_EXPIRED_TIME = 60 * 60 * 24;
   private readonly NAME_COUNTER_KEY_NAME = 'nameCounter';
   private readonly STATE_KEY_NAME = 'state';
-  private readonly PARTICIPANTS_KEY_NAME = 'participants';
+  private readonly REDIS_KEY_PREFIX = 'blinddate';
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redisClient: RedisClientType,
@@ -40,42 +40,45 @@ export class SessionRepository {
     return sessionId;
   }
 
-  public async leave(sessionId: string, memberId: number) {
+  public async leave(sessionId: string, memberId: number, socketId: string) {
     const participantsKey = SessionKeyFactory.getParticipantsKey(sessionId);
     const memberKey = SessionKeyFactory.getMemberKey(memberId);
     const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
 
-    for (let retry = 0; retry < 3; retry++) {
-      await this.redisClient.watch([sessionKey, participantsKey, memberKey]);
+    // 대기중인 방이 아닌 경우 별도 나감 상태를 처리하지 않음
+    const state = await this.redisClient.hGet(sessionKey, this.STATE_KEY_NAME);
 
-      // 대기중인 방이 아닌 경우 별도 나감 상태를 처리하지 않음
-      const state = await this.redisClient.hGet(
-        sessionKey,
-        this.STATE_KEY_NAME,
-      );
-
-      // 세션 대기 상태가 아닌 경우 종료
-      if (state !== SESSION_STATE.WAITING) {
-        return;
-      }
-
-      // 세션 대기 상태인 경우 퇴장 처리
-      console.log(`Client out of session: ${sessionId}`);
-
-      const result = await this.redisClient
-        .multi()
-        .sRem(participantsKey, String(memberId)) // 참가자 목록에서 회원 정보 제거
-        .hDel(memberKey, 'session') // 회원의 세션 정보 초기화
-        .exec();
-
-      if (result !== null) {
-        return;
-      }
+    // 세션 대기 상태가 아닌 경우 종료
+    if (state !== SESSION_STATE.WAITING) {
+      return null;
     }
 
-    console.error(
-      `Failed to leave session: ${sessionId} for member: ${memberId}`,
-    );
+    // 세션 대기 상태인 경우 퇴장 처리
+    console.log(`Client out of session: ${sessionId}`);
+
+    const memberSocketKey = SessionKeyFactory.getMemberSocketKey(memberId);
+    const socketAmount = await this.redisClient.sCard(memberSocketKey);
+    const volunteer = await this.redisClient.sCard(participantsKey);
+
+    // 여러 디바이스로 접근중인 경우
+    if (socketAmount > 1) {
+      console.log(
+        `Client already joined. sessionId: ${sessionId}, memberId: ${memberId}}`,
+      );
+      await this.redisClient.sRem(memberSocketKey, socketId);
+
+      return volunteer;
+    }
+
+    // 하나의 디바이스로 접근중인 경우
+    await this.redisClient
+      .multi()
+      .sRem(memberSocketKey, socketId)
+      .sRem(participantsKey, memberId.toString()) // 참가자 목록에서 회원 정보 제거
+      .hDel(memberKey, 'session') // 회원의 세션 정보 초기화
+      .exec();
+
+    return volunteer - 1;
   }
 
   public async addMember(
@@ -86,46 +89,49 @@ export class SessionRepository {
     const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
     const participantsKey = SessionKeyFactory.getParticipantsKey(sessionId);
     const memberKey = SessionKeyFactory.getMemberKey(memberId);
+    const memberSocketKey = SessionKeyFactory.getMemberSocketKey(memberId);
     const socketKey = SessionKeyFactory.getSocketKey(socketId);
 
-    // 커밋 중 충돌 시 재시도
-    for (let retry = 0; retry < 3; retry++) {
-      await this.redisClient.watch([
-        sessionKey,
-        participantsKey,
-        memberKey,
-        socketKey,
-      ]);
-
-      // 이미 존재하는 회원이면 종료
-      if (await this.redisClient.sIsMember(participantsKey, String(memberId))) {
-        return;
-      }
-
-      const nameCount = Number(
-        await this.redisClient.hGet(sessionKey, this.NAME_COUNTER_KEY_NAME),
+    // 이미 존재하는 회원이면 종료
+    if (await this.redisClient.sIsMember(participantsKey, String(memberId))) {
+      console.log(
+        `Client already connected. sessionId: ${sessionId}, memberId: ${memberId}`,
       );
+      await this.redisClient.sAdd(memberSocketKey, socketId);
 
-      const name = `익명${nameCount + 1}`;
-
-      const result = await this.redisClient
-        .multi()
-        .sAdd(participantsKey, String(memberId)) // 참가자 정보 등록
-        .hSet(memberKey, 'name', name) // 사용자 이름 설정
-        .hSet(memberKey, 'session', sessionId) // 사용자 세션 설정
-        .hSet(socketKey, 'member', memberId) // 소켓에 회원 id 바인드
-        .hSet(socketKey, 'session', sessionId) // 소켓에 세션 id 바인드
-        .hIncrBy(sessionKey, this.NAME_COUNTER_KEY_NAME, 1)
-        .expire(memberKey, this.BLINDDATE_EXPIRED_TIME)
-        .expire(socketKey, this.BLINDDATE_EXPIRED_TIME)
-        .exec();
-
-      if (result !== null) {
-        return;
+      const name = await this.redisClient.hGet(memberKey, 'name');
+      if (!name) {
+        throw new MemberNameNotFoundException();
       }
+
+      const volunteer = await this.redisClient.sCard(participantsKey);
+      return { volunteer, name };
     }
 
-    await this.redisClient.unwatch();
+    // 이름 할당
+    const nameCount = await this.redisClient.hIncrBy(
+      sessionKey,
+      this.NAME_COUNTER_KEY_NAME,
+      1,
+    );
+
+    const name = `익명${nameCount - 1}`;
+
+    await this.redisClient
+      .multi()
+      .sAdd(participantsKey, String(memberId)) // 참가자 정보 등록
+      .hSet(memberKey, 'name', name) // 사용자 이름 설정
+      .hSet(memberKey, 'session', sessionId) // 사용자 세션 설정
+      .sAdd(memberSocketKey, memberId.toString()) // 사용사 소켓 목록 추가
+      .hSet(socketKey, 'member', memberId) // 소켓에 회원 id 바인드
+      .hSet(socketKey, 'session', sessionId) // 소켓에 세션 id 바인드
+      .expire(memberSocketKey, this.BLINDDATE_EXPIRED_TIME)
+      .expire(memberKey, this.BLINDDATE_EXPIRED_TIME)
+      .expire(socketKey, this.BLINDDATE_EXPIRED_TIME)
+      .exec();
+
+    const lastVolunteer = await this.redisClient.sCard(participantsKey);
+    return { volunteer: lastVolunteer, name };
   }
 
   public async getParticipantsIdAndName(sessionId: string) {
@@ -161,56 +167,45 @@ export class SessionRepository {
     const choiceKeyName = SessionKeyFactory.getChoiceKeyName(sessionId);
     const matchesKeyName = SessionKeyFactory.getMatchesKeyName(sessionId);
 
-    for (let retry = 0; retry < 3; retry++) {
-      await this.redisClient.watch([choiceKeyName, matchesKeyName]);
+    // 선택 여부 확인
+    const alreadyChoice = await this.redisClient.hExists(
+      choiceKeyName,
+      choicerId.toString(),
+    );
 
-      const alreadyChoice = await this.redisClient.hExists(
-        choiceKeyName,
-        choicerId.toString(),
-      );
-
-      if (alreadyChoice) {
-        return;
-      }
-
-      // 선택자 저장
-      const choiceResult = await this.redisClient
-        .multi()
-        .hSet(choiceKeyName, choicerId, targetId)
-        .hExpire(choiceKeyName, choicerId.toString(), this.CHOICE_EXPIRED_TIME)
-        .exec();
-
-      if (choiceResult === null) {
-        continue;
-      }
-
-      // 상대가 날 선택하지 않았을 때
-      const targetsPick = await this.redisClient.hGet(
-        choiceKeyName,
-        targetId.toString(),
-      );
-
-      if (!targetsPick || targetsPick !== choicerId.toString()) {
-        return;
-      }
-
-      // 매칭 성사되었을 때
-      const matchedResult = await this.redisClient
-        .multi()
-        .sAdd(matchesKeyName, choicerId.toString())
-        .sAdd(matchesKeyName, targetId.toString())
-        .exec();
-
-      if (matchedResult === null) {
-        continue;
-      }
-
-      console.log(
-        `matching success ! choicer: ${choicerId} / target: ${targetId}`,
-      );
-
-      return true;
+    if (alreadyChoice) {
+      return false;
     }
+
+    // 선택자 저장
+    await this.redisClient
+      .multi()
+      .hSet(choiceKeyName, choicerId, targetId)
+      .hExpire(choiceKeyName, choicerId.toString(), this.CHOICE_EXPIRED_TIME)
+      .exec();
+
+    // 상대가 날 선택하지 않았을 때
+    const targetsPick = await this.redisClient.hGet(
+      choiceKeyName,
+      targetId.toString(),
+    );
+
+    if (!targetsPick || targetsPick !== choicerId.toString()) {
+      return false;
+    }
+
+    // 매칭 성사되었을 때
+    await this.redisClient
+      .multi()
+      .sAdd(matchesKeyName, choicerId.toString())
+      .sAdd(matchesKeyName, targetId.toString())
+      .exec();
+
+    console.log(
+      `matching success ! choicer: ${choicerId} / target: ${targetId}`,
+    );
+
+    return true;
   }
 
   public async getAllMembers(sessionId: string): Promise<number[]> {
@@ -223,6 +218,7 @@ export class SessionRepository {
   public async getNotMatched(sessionId: string) {
     const matchedKey = SessionKeyFactory.getMatchesKeyName(sessionId);
     const allMembers = await this.getAllMembers(sessionId);
+    console.log(allMembers);
 
     const matchedMemberString = await this.redisClient.sMembers(matchedKey);
 
@@ -247,7 +243,7 @@ export class SessionRepository {
     }
 
     const participants = await this.redisClient.sMembers(participantsKey);
-
+    console.log('participants', participants);
     const sessionData = {
       participants,
       state: rawData[this.STATE_KEY_NAME] as SESSION_STATE_TYPE,
@@ -267,32 +263,15 @@ export class SessionRepository {
     );
   }
 
-  public getSessionIdByMemberId(memberId: number): Promise<string | null> {
+  public async getSessionIdByMemberId(memberId: number) {
     const memberKey = SessionKeyFactory.getMemberKey(memberId);
-    return this.redisClient.hGet(memberKey, 'session');
+    const sessionId = await this.redisClient.hGet(memberKey, 'session');
+
+    return sessionId;
   }
 
-  private parsedParticipants(participantsRaw: string): Participant[] {
-    const participantsParsed: {
-      memberId: string;
-      socketId: string[];
-      name: string;
-    }[] = participantsRaw
-      ? (JSON.parse(participantsRaw) as {
-          memberId: string;
-          socketId: string[];
-          name: string;
-        }[])
-      : [];
-
-    return participantsParsed.map(
-      (participant) =>
-        new Participant(
-          Number(participant.memberId),
-          participant.socketId,
-          participant.name,
-        ),
-    );
+  public getSessionStatus(sessionId: string) {
+    return this.redisClient.hGet(sessionId, this.STATE_KEY_NAME);
   }
 
   private getSessionData(sessionId: string) {

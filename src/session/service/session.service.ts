@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { SessionRepository } from '@/session/repository/session.repository';
+import { SessionIdNotFoundException } from '@/blinddate/exception/SessionIdNotFoundException';
+import { SessionKeyFactory } from '@/session/repository/session-key.factory';
+import { SessionStateNotFoundException } from '@/session/exception/SessionStateNotFoundException';
 
 @Injectable()
 export class SessionService {
@@ -9,11 +12,12 @@ export class SessionService {
     await this.sessionRepository.terminate(sessionId);
   }
 
-  public async choice(sessionId: string, choicerId: number, targetId: number) {
-    return (
-      (await this.sessionRepository.choice(sessionId, choicerId, targetId)) ??
-      false
-    );
+  public choice(sessionId: string, choicerId: number, targetId: number) {
+    if (sessionId === null) {
+      throw new SessionIdNotFoundException();
+    }
+
+    return this.sessionRepository.choice(sessionId, choicerId, targetId);
   }
 
   public async getName(sessionId: string, memberId: number) {
@@ -25,8 +29,12 @@ export class SessionService {
     return name;
   }
 
-  public async leave(sessionId: string, memberId: number) {
-    await this.sessionRepository.leave(sessionId, memberId);
+  public leave(sessionId: string, memberId: number, socketId: string) {
+    if (sessionId === null) {
+      throw new SessionIdNotFoundException();
+    }
+
+    return this.sessionRepository.leave(sessionId, memberId, socketId);
   }
 
   public getNotMatched(sessionId: string) {
@@ -41,15 +49,18 @@ export class SessionService {
     await this.sessionRepository.start(sessionId);
   }
 
-  public async addMember(
-    sessionId: string,
-    memberId: number,
-    socketId: string,
-  ) {
-    await this.sessionRepository.addMember(sessionId, memberId, socketId);
+  public addMember(sessionId: string, memberId: number, socketId: string) {
+    return this.sessionRepository.addMember(sessionId, memberId, socketId);
   }
 
-  public getSession(sessionId: string) {
-    return this.sessionRepository.getSession(sessionId);
+  public async getSessionState(sessionId: string) {
+    const sessionKey = SessionKeyFactory.getSessionKey(sessionId);
+    const status = await this.sessionRepository.getSessionStatus(sessionKey);
+
+    if (!status) {
+      throw new SessionStateNotFoundException();
+    }
+
+    return status;
   }
 }

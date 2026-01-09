@@ -11,4 +11,6 @@ export const EVENT_TYPE = {
   START: 'start',
   JOIN: 'join',
   ENDED: 'ended',
+  FAILED: 'failed',
+  PARTICIPANTS: 'participants',
 } as const;

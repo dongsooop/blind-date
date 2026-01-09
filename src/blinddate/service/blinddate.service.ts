@@ -8,6 +8,7 @@ import { HttpService } from '@nestjs/axios';
 import { SessionService } from '@/session/service/session.service';
 import { IBlindDateService } from '@/blinddate/service/blinddate.service.interface';
 import { BlindDateRepository } from '@/blinddate/repository/blinddate.repository';
+import { JoinStatus } from '@/blinddate/constant/join.type';
 
 @Injectable()
 export class BlindDateService implements IBlindDateService {
@@ -23,9 +24,8 @@ export class BlindDateService implements IBlindDateService {
     await this.blindDateRepository.setMaxSessionMemberCount(
       request.getMaxSessionMemberCount(),
     );
-    await this.blindDateRepository.setPointerExpire(
-      request.getExpiredDate().getTime(),
-    );
+
+    await this.blindDateRepository.resetPointer();
 
     const expiredMinute = request.getExpiredDate().getMinutes();
     const expiredHour = request.getExpiredDate().getHours();
@@ -40,7 +40,6 @@ export class BlindDateService implements IBlindDateService {
 
   public async isAvailable(): Promise<boolean> {
     const status = await this.blindDateRepository.getBlindDateStatus();
-
     if (!status || status === BLIND_DATE_STATUS.CLOSE) {
       return false;
     }
@@ -59,14 +58,15 @@ export class BlindDateService implements IBlindDateService {
 
     // 재연결일 때
     if (sessionId !== null) {
-      return sessionId;
+      return { sessionId, joinStatus: JoinStatus.DUPLICATE };
     }
 
     const pointer = await this.blindDateRepository.getPointer();
 
     // pointer가 가리키는 세션이 없을 때
     if (pointer === null) {
-      return await this.initPointer();
+      const newPointer = await this.initPointer();
+      return { sessionId: newPointer, joinStatus: JoinStatus.FIRST };
     }
 
     // pointer가 가리키는 세션의 인원수가 찼을 때
@@ -74,10 +74,11 @@ export class BlindDateService implements IBlindDateService {
     const volunteer: number = session?.getParticipants().length || 0;
     const memberCount = await this.getMaxSessionMemberCount();
     if (volunteer >= memberCount) {
-      return await this.initPointer();
+      const newPointer = await this.initPointer();
+      return { sessionId: newPointer, joinStatus: JoinStatus.FIRST };
     }
 
-    return pointer;
+    return { sessionId: pointer, joinStatus: JoinStatus.FIRST };
   }
 
   public async requestToCreateChatRoom(
@@ -121,7 +122,6 @@ export class BlindDateService implements IBlindDateService {
     }
 
     // 매칭 성공 시
-    console.log(`matching success! ${choicerId} + ${targetId}`);
     const response = await this.requestToCreateChatRoom(choicerId, targetId);
 
     const createdRoomId: string = (response.data as { roomId: string }).roomId;
