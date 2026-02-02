@@ -23,7 +23,16 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+블라인드 데이트는 실시간 소통을 통한 온라인 미팅 매칭 서비스입니다. WebSocket을 활용하여 실시간 채팅 환경을 제공하며, Redis 기반의 큐 시스템으로 안정적인 세션 관리와 매칭 프로세스를 구현합니다.
+
+### 📚 자세한 문서
+프로젝트의 상세한 설명, 아키텍처, 문제 해결 과정은 [**WIKI.md**](./WIKI.md)를 참조하세요.
+
+### 주요 특징
+- **실시간 통신**: Socket.IO를 활용한 양방향 실시간 메시징
+- **세션 기반 매칭**: 설정 가능한 인원수로 자동 세션 생성 및 배정
+- **큐 시스템**: Redis를 활용한 안정적인 비동기 작업 처리
+- **매칭 알고리즘**: 상호 선택 기반 1:1 매칭 시스템
 
 ## Project setup
 
