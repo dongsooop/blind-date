@@ -9,6 +9,8 @@ import { SessionService } from '@/session/service/session.service';
 import { IBlindDateService } from '@/blinddate/service/blinddate.service.interface';
 import { BlindDateRepository } from '@/blinddate/repository/blinddate.repository';
 import { JoinStatus } from '@/blinddate/constant/join.type';
+import { SESSION_STATE } from '@/session/const/session.constant';
+import { SessionKeyFactory } from '@/session/repository/session-key.factory';
 
 @Injectable()
 export class BlindDateService implements IBlindDateService {
@@ -58,9 +60,17 @@ export class BlindDateService implements IBlindDateService {
     const sessionId =
       await this.sessionRepository.getSessionIdByMemberId(memberId);
 
-    // 재연결일 때
+    // 대기 또는 진행 중인 세션만 재연결한다. 종료·만료된 세션은 신규 배정한다.
     if (sessionId !== null) {
-      return { sessionId, joinStatus: JoinStatus.DUPLICATE };
+      const state = await this.sessionRepository.getSessionStatus(
+        SessionKeyFactory.getSessionKey(sessionId),
+      );
+      if (
+        state === SESSION_STATE.WAITING ||
+        state === SESSION_STATE.PROCESSING
+      ) {
+        return { sessionId, joinStatus: JoinStatus.DUPLICATE };
+      }
     }
 
     const pointer = await this.blindDateRepository.getPointer();
@@ -75,7 +85,7 @@ export class BlindDateService implements IBlindDateService {
     const session = await this.sessionRepository.getSession(pointer);
     const volunteer: number = session?.getParticipants().length || 0;
     const memberCount = await this.getMaxSessionMemberCount();
-    if (volunteer >= memberCount) {
+    if (!session.isWaiting() || volunteer >= memberCount) {
       const newPointer = await this.initPointer();
       return { sessionId: newPointer, joinStatus: JoinStatus.FIRST };
     }
